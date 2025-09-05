@@ -1,0 +1,107 @@
+[project]
+name = "llmcomposer"
+authors = [
+    {name = "Alex Nodeland", email = "alex@ournature.studio"}
+]
+version = "0.1.0"
+description = "Compose music with an LLM copilot"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "logfire>=4.3.6",
+    "pydantic>=2.11.7",
+    "pydantic-ai>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.405",
+    "pytest>=8.4.2",
+    "ruff>=0.12.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+extend-select = ["RUF", "D", "N", "UP", "PD"]
+ignore = ["N818"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.pep8-naming]
+ignore-names = [
+    "A",
+    "A_*",
+    "B",
+    "B_*",
+    "C",
+    "C_*",
+    "D",
+    "D_*",
+    "E",
+    "E_*",
+    "F",
+    "F_*",
+    "G",
+    "G_*",
+    "H",
+    "H_*",
+    "I",
+    "I_*",
+    "J",
+    "J_*",
+    "K",
+    "K_*",
+    "L",
+    "L_*",
+    "M",
+    "M_*",
+    "N",
+    "N_*",
+    "O",
+    "O_*",
+    "P",
+    "P_*",
+    "Q",
+    "Q_*",
+    "R",
+    "R_*",
+    "S",
+    "S_*",
+    "T",
+    "T_*",
+    "U",
+    "U_*",
+    "V",
+    "V_*",
+    "W",
+    "W_*",
+    "X",
+    "X_*",
+    "Y",
+    "Y_*",
+    "Z",
+    "Z_*",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "D104"]
+"*/{tests,docs,examples}/*" = ["D", "E402", "N"]
+"tests/*" = ["D", "E402", "N"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.pyright]
+typeCheckingMode = "basic"
+
