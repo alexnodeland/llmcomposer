@@ -325,8 +325,39 @@
   .tbtn:disabled { opacity: 0.35; cursor: default; }
 
   @media (max-width: 900px) {
-    #layout { grid-template-columns: 1fr; grid-template-rows: 1fr 46vh; }
-    #stage { order: -1; }
+    #layout {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: 10px;
+      gap: 10px;
+      overflow-y: auto;
+    }
+    #stage { order: -1; flex: 0 0 auto; min-height: 0; gap: 8px; }
+    #score-panel { max-height: 34vh; padding: 14px; }
+    #abcsrc { max-height: 20vh; }
+    #chat { flex: 1 1 auto; min-height: 260px; }
+    #chat-head { padding: 10px 14px 8px; }
+    .wordmark { font-size: 16px; }
+    .tagline { font-size: 9.5px; }
+    #log { padding: 12px 14px; gap: 10px; }
+    #chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 0 12px 8px;
+      scrollbar-width: none;
+    }
+    #chips::-webkit-scrollbar { display: none; }
+    .chip { flex: 0 0 auto; }
+    #composerbar { padding: 10px 12px 12px; }
+    /* 16px stops iOS Safari from zooming the page on focus */
+    #prompt { font-size: 16px; padding: 9px 11px; }
+    #model-label { padding: 0 14px 8px; }
+    #statusline { font-size: 10px; }
+    #transport { flex-wrap: wrap; gap: 6px; }
+    .tbtn { padding: 7px 10px; font-size: 10.5px; }
+    #warpwrap { margin-left: 0; flex-basis: 100%; }
+    #warp { flex: 1; width: auto; max-width: 220px; }
   }
 </style>
 </head>
