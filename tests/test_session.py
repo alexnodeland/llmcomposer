@@ -46,3 +46,22 @@ def test_offline_arrangement_has_aligned_voices_and_patches():
     assert len(voices) == 3
     assert len({len(bars) for bars in voices.values()}) == 1
     assert update.abc.count("%%MIDI program") == 3
+
+
+def test_send_stream_yields_progress_then_final():
+    async def collect():
+        session = ComposerSession(model="offline")
+        events = []
+        async for event in session.send_stream("like rain on a window"):
+            events.append(event)
+        return session, events
+
+    session, events = asyncio.run(collect())
+    types = [event["type"] for event in events]
+    assert types[0] == "writing"
+    assert "progress" in types
+    assert types[-1] == "final"
+    final = events[-1]
+    validate_abc(final["abc"])
+    assert session.abc == final["abc"]
+    assert final["meta"]["requests"] >= 1

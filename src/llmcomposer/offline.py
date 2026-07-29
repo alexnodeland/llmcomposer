@@ -7,8 +7,10 @@ unchanged; only the model is swapped. Selected with ``LLMCOMPOSER_MODEL=offline`
 
 from __future__ import annotations
 
+import json
 import random
 import re
+from collections.abc import AsyncIterator
 
 from pydantic_ai.messages import (
     ModelMessage,
@@ -17,7 +19,12 @@ from pydantic_ai.messages import (
     ToolCallPart,
     UserPromptPart,
 )
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import (
+    AgentInfo,
+    DeltaToolCall,
+    DeltaToolCalls,
+    FunctionModel,
+)
 
 _SCALES: dict[str, list[str]] = {
     "C": ["C", "D", "E", "F", "G", "A", "B", "c"],
@@ -177,6 +184,20 @@ def _offline_composer(messages: list[ModelMessage], info: AgentInfo) -> ModelRes
     )
 
 
+async def _offline_composer_stream(
+    messages: list[ModelMessage], info: AgentInfo
+) -> AsyncIterator[DeltaToolCalls]:
+    """Stream the same composition as chunked tool-call deltas."""
+    prompt = _last_user_prompt(messages)
+    reply, abc = _compose(prompt, _existing_key(messages))
+    if not info.output_tools:
+        return
+    args = json.dumps({"reply": reply, "abc": abc})
+    yield {0: DeltaToolCall(name=info.output_tools[0].name)}
+    for start in range(0, len(args), 48):
+        yield {0: DeltaToolCall(json_args=args[start : start + 48])}
+
+
 def offline_model() -> FunctionModel:
     """Build the offline composer model.
 
@@ -184,5 +205,10 @@ def offline_model() -> FunctionModel:
     -------
     FunctionModel
         A model producing valid, deterministic ABC tunes with no network.
+        Supports both plain and streamed runs.
     """
-    return FunctionModel(_offline_composer, model_name="offline-composer")
+    return FunctionModel(
+        _offline_composer,
+        stream_function=_offline_composer_stream,
+        model_name="offline-composer",
+    )

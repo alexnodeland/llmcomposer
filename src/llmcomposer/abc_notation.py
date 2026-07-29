@@ -24,9 +24,12 @@ _HEADER_LINE = re.compile(r"^[A-Za-z]:")
 _METER = re.compile(r"^(\d+)/(\d+)$")
 _UNIT_LENGTH = re.compile(r"^(\d+)/(\d+)$")
 
-# Constructs that carry no duration: chord symbols / annotations, decorations,
-# grace notes, invisible spacers, broken-rhythm markers, ties, and slurs.
-_NEUTRAL = re.compile(r'"[^"]*"|![^!]*!|\{[^}]*\}|y\d*|[<>\-\\)]|\((?!\d)')
+# Constructs that carry no duration: chord symbols / annotations, dynamics
+# and decorations (!p!, staccato dots, letter shortcuts), grace notes,
+# invisible spacers, broken-rhythm markers, ties, and slurs.
+_NEUTRAL = re.compile(
+    r'"[^"]*"|![^!]*!|\{[^}]*\}|y\d*|[<>\-\\)]|\((?!\d)|[.~HLMOPSTuv]'
+)
 
 _BARLINE = re.compile(r"\[\||\|\]|:\|+|\|+:|::|\|")
 _VOLTA = re.compile(r"^\s*\[?\d[\s,-]*")

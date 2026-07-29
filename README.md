@@ -25,10 +25,12 @@ multi-voice arrangement, choosing a General MIDI patch per instrument with
 `%%MIDI program` directives.
 
 The player highlights each note across all staves as it sounds, with a
-progress bar, loop mode, an instrument legend, per-score version history,
-and `.abc` / `.midi` export. Every composer reply carries turn telemetry —
-elapsed time, request count, token spend, and how many times the ABC
-validator bounced the score back for self-correction.
+progress bar, loop mode, a tempo slider, an instrument legend, per-score
+version history, a raw-ABC source drawer with copy, and `.abc` / `.midi`
+export. Composition streams live — you watch the score being written
+("writing the score · 512 chars"), and if the validator bounces it you see
+the rewrite happen. Every composer reply carries turn telemetry — elapsed
+time, request count, token spend, and correction count.
 
 ## How it's built
 
@@ -55,6 +57,11 @@ The interesting parts are how deeply it leans on pydantic-ai:
   `FunctionModel` with `ALLOW_MODEL_REQUESTS = False`, and
   [`offline.py`](src/llmcomposer/offline.py) is a `FunctionModel` that
   composes deterministic tunes so the whole stack runs with no network.
+- **Event-stream handler** — `ComposerSession.send_stream` passes an
+  `event_stream_handler` to `agent.run`, translating pydantic-ai's
+  `PartStartEvent`/`PartDeltaEvent` stream into server-sent events, so the
+  UI shows the score being written token-by-token and every validator
+  bounce, while retries keep their normal non-streaming semantics.
 - **Logfire instrumentation** — `logfire.instrument_pydantic_ai()` is wired
   in and activates when `LOGFIRE_TOKEN` is present.
 

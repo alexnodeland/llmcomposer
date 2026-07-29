@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import logfire
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.models import Model
@@ -52,6 +54,19 @@ def create_app(model: Model | str | None = None) -> FastAPI:
             except UnexpectedModelBehavior as exc:
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
         return ChatResponse(reply=update.reply, abc=update.abc, meta=meta)
+
+    @app.post("/chat/stream")
+    async def chat_stream(payload: ChatRequest) -> StreamingResponse:
+        async def events() -> AsyncIterator[str]:
+            async with lock:
+                try:
+                    async for event in session.send_stream(payload.message):
+                        yield f"data: {json.dumps(event)}\n\n"
+                except UnexpectedModelBehavior as exc:
+                    error = {"type": "error", "detail": str(exc)}
+                    yield f"data: {json.dumps(error)}\n\n"
+
+        return StreamingResponse(events(), media_type="text/event-stream")
 
     @app.post("/reset")
     async def reset() -> dict[str, bool]:

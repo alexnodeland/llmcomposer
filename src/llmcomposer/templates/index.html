@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>llmcomposer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%BC%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
 <style>
   :root {
@@ -108,6 +109,12 @@
   .typing span { animation: blink 1.2s infinite; }
   .typing span:nth-child(2) { animation-delay: 0.2s; }
   .typing span:nth-child(3) { animation-delay: 0.4s; }
+  .typing .tstat {
+    font-style: normal;
+    color: var(--ochre);
+    margin-left: 6px;
+    letter-spacing: 0.04em;
+  }
   @keyframes blink { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
 
   #chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
@@ -224,6 +231,66 @@
     transition: border-color 0.5s;
   }
   #score-panel.fresh { border-color: rgba(143, 227, 176, 0.45); }
+  #score-panel.composing {
+    border-color: rgba(217, 180, 130, 0.4);
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+  #srcwrap {
+    display: none;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    backdrop-filter: blur(18px);
+    padding: 12px 16px;
+  }
+  #srcwrap.open { display: block; }
+  #srchead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  #copybtn {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 9px;
+    cursor: pointer;
+  }
+  #copybtn:hover { color: var(--moss); }
+  #abcsrc {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--dim);
+    white-space: pre;
+    overflow-x: auto;
+    margin: 0;
+    max-height: 32vh;
+    overflow-y: auto;
+  }
+  #warpwrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    margin-left: auto;
+  }
+  #warp {
+    width: 110px;
+    accent-color: var(--moss);
+    height: 2px;
+  }
   #score-empty {
     min-height: 90px;
     display: flex;
@@ -298,7 +365,17 @@
       <button class="tbtn" id="loopbtn" disabled>loop off</button>
       <button class="tbtn" id="dlbtn" disabled>download .abc</button>
       <button class="tbtn" id="midibtn" disabled>download .midi</button>
+      <button class="tbtn" id="srcbtn" disabled>source</button>
       <button class="tbtn" id="resetbtn">start over</button>
+      <label id="warpwrap">tempo
+        <input type="range" id="warp" min="0.6" max="1.4" step="0.05" value="1">
+        <span id="warplabel">&times;1.00</span>
+      </label>
+    </div>
+    <div id="srcwrap">
+      <div id="srchead"><span>abc source &mdash; what the composer wrote</span>
+        <button id="copybtn">copy</button></div>
+      <pre id="abcsrc"></pre>
     </div>
   </main>
 </div>
@@ -343,8 +420,15 @@ let typingEl = null;
 function showTyping() {
   typingEl = document.createElement("div");
   typingEl.className = "msg bot typing";
-  typingEl.innerHTML = "<span>&middot;</span><span>&middot;</span><span>&middot;</span>";
+  typingEl.innerHTML =
+    '<span>&middot;</span><span>&middot;</span><span>&middot;</span> ' +
+    '<em class="tstat"></em>';
   log.appendChild(typingEl);
+  log.scrollTop = log.scrollHeight;
+}
+function setTyping(text) {
+  if (!typingEl) showTyping();
+  typingEl.querySelector(".tstat").textContent = text;
   log.scrollTop = log.scrollHeight;
 }
 function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
@@ -418,36 +502,72 @@ function renderVoices(abc) {
   }
 }
 
+function handleStreamEvent(ev) {
+  if (ev.type === "writing") {
+    if (ev.attempt > 1) {
+      setTyping("score bounced by the validator — rewriting (attempt " + ev.attempt + ")");
+    } else {
+      setTyping("writing the score");
+    }
+  } else if (ev.type === "progress") {
+    setTyping("writing the score · " + ev.chars + " chars");
+  } else if (ev.type === "final") {
+    hideTyping();
+    const el = addMsg(ev.reply, "bot");
+    appendMeta(el, ev.meta);
+    versions.push({ abc: ev.abc, label: "v" + (versions.length + 1) });
+    viewingVersion = -1;
+    setScore(ev.abc);
+    renderVersions();
+  } else if (ev.type === "error") {
+    hideTyping();
+    addMsg(String(ev.detail).slice(0, 300), "bot err");
+  }
+}
+
 async function send(text) {
   text = text.trim();
   if (!text) return;
   addMsg(text, "user");
   $("prompt").value = "";
   $("send").disabled = true;
+  $("score-panel").classList.add("composing");
   showTyping();
+  setTyping("listening");
   try {
-    const res = await fetch("/chat", {
+    const res = await fetch("/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
     });
-    hideTyping();
-    if (!res.ok) {
+    if (!res.ok || !res.body) {
+      hideTyping();
       const detail = (await res.json().catch(() => ({}))).detail || res.statusText;
       addMsg(String(detail).slice(0, 300), "bot err");
       return;
     }
-    const data = await res.json();
-    const el = addMsg(data.reply, "bot");
-    appendMeta(el, data.meta);
-    versions.push({ abc: data.abc, label: "v" + (versions.length + 1) });
-    viewingVersion = -1;
-    setScore(data.abc);
-    renderVersions();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let split;
+      while ((split = buffer.indexOf("\n\n")) >= 0) {
+        const chunk = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        if (chunk.startsWith("data: ")) {
+          handleStreamEvent(JSON.parse(chunk.slice(6)));
+        }
+      }
+    }
+    hideTyping();
   } catch (err) {
     hideTyping();
     addMsg("could not reach the composer: " + err.message, "bot err");
   } finally {
+    $("score-panel").classList.remove("composing");
     $("send").disabled = false;
     $("prompt").focus();
   }
@@ -487,6 +607,8 @@ function setScore(abc) {
   $("loopbtn").disabled = !visualObj;
   $("dlbtn").disabled = !visualObj;
   $("midibtn").disabled = !visualObj;
+  $("srcbtn").disabled = !visualObj;
+  $("abcsrc").textContent = abc;
   updateStatus(abc);
   renderVoices(abc);
   const panel = $("score-panel");
@@ -518,6 +640,7 @@ function escapeHtml(s) {
 }
 
 /* ---------------- playback + visuals bridge ---------------- */
+let warp = 1;
 async function play() {
   if (!visualObj) return;
   stopPlayback();
@@ -527,12 +650,14 @@ async function play() {
   await synth.init({
     visualObj,
     audioContext: audioCtx,
-    millisecondsPerMeasure: visualObj.millisecondsPerMeasure(),
+    millisecondsPerMeasure: visualObj.millisecondsPerMeasure() / warp,
     options: {},
   });
   const primed = await synth.prime();
   const totalMs = ((primed && primed.duration) || synth.duration || 0) * 1000;
+  const baseBpm = typeof visualObj.getBpm === "function" ? visualObj.getBpm() : 0;
   timer = new ABCJS.TimingCallbacks(visualObj, {
+    qpm: baseBpm ? baseBpm * warp : undefined,
     eventCallback: (ev) => {
       if (!ev) {
         const restart = looping;
@@ -582,6 +707,28 @@ $("loopbtn").addEventListener("click", () => {
   $("loopbtn").classList.toggle("active", looping);
 });
 
+$("warp").addEventListener("input", () => {
+  warp = parseFloat($("warp").value);
+  $("warplabel").innerHTML = "&times;" + warp.toFixed(2);
+});
+$("warp").addEventListener("change", () => {
+  if (playing) { stopPlayback(); play(); }
+});
+
+$("srcbtn").addEventListener("click", () => {
+  const open = $("srcwrap").classList.toggle("open");
+  $("srcbtn").classList.toggle("active", open);
+});
+$("copybtn").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(currentABC);
+    $("copybtn").textContent = "copied";
+    setTimeout(() => { $("copybtn").textContent = "copy"; }, 1200);
+  } catch (e) {
+    $("copybtn").textContent = "copy failed";
+  }
+});
+
 $("dlbtn").addEventListener("click", () => {
   if (!currentABC) return;
   const name = (header(currentABC, "T") || "tune").replace(/\W+/g, "-");
@@ -615,6 +762,10 @@ $("resetbtn").addEventListener("click", async () => {
   $("loopbtn").disabled = true;
   $("dlbtn").disabled = true;
   $("midibtn").disabled = true;
+  $("srcbtn").disabled = true;
+  $("srcbtn").classList.remove("active");
+  $("srcwrap").classList.remove("open");
+  $("abcsrc").textContent = "";
   versions.length = 0;
   viewingVersion = -1;
   renderVersions();

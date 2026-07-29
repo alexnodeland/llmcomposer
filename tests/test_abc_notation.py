@@ -135,3 +135,10 @@ class TestVoices:
         bad = MULTI.replace("A,4 E,4 |", "A,4 E,4 C4 |")
         with pytest.raises(ABCValidationError, match="voice 2, bar 1"):
             validate_abc(bad)
+
+
+def test_dynamics_and_articulations_validate():
+    abc = (
+        "X:1\nT:x\nM:4/4\nL:1/8\nK:C\n!p!.C2 D2 ~E2 uF2 | !f!(GA) (3cde f2 c2 | C8 |]\n"
+    )
+    validate_abc(abc)
