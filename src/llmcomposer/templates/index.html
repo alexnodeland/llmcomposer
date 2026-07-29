@@ -117,19 +117,6 @@
   }
   @keyframes blink { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
 
-  #chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
-  .chip {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--dim);
-    background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 5px 11px;
-    cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
-  }
-  .chip:hover { color: var(--moss); border-color: rgba(143, 227, 176, 0.4); }
   #composerbar { display: flex; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
   #prompt {
     flex: 1;
@@ -341,14 +328,6 @@
     .wordmark { font-size: 16px; }
     .tagline { font-size: 9.5px; }
     #log { padding: 12px 14px; gap: 10px; }
-    #chips {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding: 0 12px 8px;
-      scrollbar-width: none;
-    }
-    #chips::-webkit-scrollbar { display: none; }
-    .chip { flex: 0 0 auto; }
     #composerbar { padding: 10px 12px 12px; }
     /* 16px stops iOS Safari from zooming the page on focus */
     #prompt { font-size: 16px; padding: 9px 11px; }
@@ -371,7 +350,6 @@
       <div class="tagline">describe a feeling &mdash; the composer writes the score</div>
     </div>
     <div id="log" role="log" aria-live="polite"></div>
-    <div id="chips"></div>
     <div id="composerbar">
       <input id="prompt" type="text" autocomplete="off"
         placeholder="tell it how the music should feel&hellip;" aria-label="message the composer">
@@ -604,20 +582,6 @@ async function send(text) {
   }
 }
 
-const CHIPS = [
-  "like rain on a window",
-  "arrange it for a trio together",
-  "slower, more wistful",
-  "add a lifting second phrase",
-  "start over in g major",
-];
-for (const c of CHIPS) {
-  const b = document.createElement("button");
-  b.className = "chip";
-  b.textContent = c;
-  b.addEventListener("click", () => send(c));
-  $("chips").appendChild(b);
-}
 $("send").addEventListener("click", () => send($("prompt").value));
 $("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter") send($("prompt").value); });
 
