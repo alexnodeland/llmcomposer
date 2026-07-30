@@ -167,7 +167,7 @@ class ComposerSession:
             for message_ in result.new_messages()
             for part in message_.parts
         )
-        usage = result.usage()
+        usage = result.usage
         meta = TurnMeta(
             model=self.model_name,
             requests=usage.requests,
