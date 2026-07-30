@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.capabilities import ProcessHistory
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from .abc_notation import ABCValidationError, validate_abc
@@ -49,8 +50,8 @@ def _keep_recent_runs(messages: list[ModelMessage]) -> list[ModelMessage]:
 composer_agent: Agent[CompositionDeps, ScoreUpdate] = Agent(
     deps_type=CompositionDeps,
     output_type=ScoreUpdate,
-    output_retries=3,
-    history_processors=[_keep_recent_runs],
+    retries={"output": 3},
+    capabilities=[ProcessHistory(_keep_recent_runs)],
     instructions=(
         "You are a composer collaborating with a human through conversation. "
         "You write and revise a single tune in ABC notation; the human "

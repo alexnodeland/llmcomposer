@@ -5,7 +5,13 @@ on [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **pydantic-ai 1.0 → 2.x**: `output_retries` became `retries={"output": …}`,
+  `history_processors` became the `ProcessHistory` capability, and
+  `result.usage` is now a property. This also unpinned opentelemetry and let
+  logfire float to current — the `[tool.uv]` constraint holding them back
+  for pydantic-ai 1.x is gone.
 
 ## [0.1.0] — 2026-07-30
 
