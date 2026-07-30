@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in llmcomposer does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: |
+        If the bug involves a specific score, include the prompt you gave the
+        composer and the raw ABC (source drawer → copy).
+      placeholder: |
+        1.
+        2.
+        3.
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: llmcomposer version
+      description: 'The release tag, or the commit SHA'
+    validations: { required: true }
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: 'The `LLMCOMPOSER_MODEL` in use — does it reproduce with `offline`?'
+      placeholder: 'anthropic:claude-opus-5'
+    validations: { required: true }
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and OS
+      placeholder: 'Firefox 141, macOS 15'
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Confirm
+      options:
+        - label: This is not a security vulnerability (those go through SECURITY.md, privately)
+          required: true

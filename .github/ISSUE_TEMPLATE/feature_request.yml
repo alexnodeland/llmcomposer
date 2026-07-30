@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest something llmcomposer should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        llmcomposer is a research exploration into how language models understand
+        music. Features that sharpen the measurement — validator coverage,
+        telemetry, baselines — are especially welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem, not the solution. What do you do today instead?
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

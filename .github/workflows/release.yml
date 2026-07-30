@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+permissions:
+  contents: write
+
+# Only one release at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # A tag is a claim about the repo's state; verify it before shipping.
+      - name: Verify pyproject version matches the tag
+        run: |
+          set -euo pipefail
+          want="${GITHUB_REF_NAME#v}"
+          got="$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          if [ "$got" != "$want" ]; then
+            echo "::error::pyproject.toml version is $got but the tag is v$want"
+            exit 1
+          fi
+
+      - name: Verify CHANGELOG leads with this tag's version
+        run: |
+          set -euo pipefail
+          want="${GITHUB_REF_NAME#v}"
+          got="$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | sed -E 's/[^0-9.]//g' || true)"
+          if [ "$got" != "$want" ]; then
+            echo "::error::CHANGELOG.md's leading section is [$got] but the tag is v$want"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: uv sync
+
+      # The full CI gate runs again on the tagged commit — a release is not
+      # the moment to trust a cached green check.
+      - name: Run checks
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+          uv run pyright src
+          uv run pytest -v
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/* \
+            --title "llmcomposer $GITHUB_REF_NAME" \
+            --generate-notes

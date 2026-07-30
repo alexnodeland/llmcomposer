@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://alexnodeland.github.io/llmcomposer/
+    about: Check the documentation for guides and the research write-up
+  - name: Discussions
+    url: https://github.com/alexnodeland/llmcomposer/discussions
+    about: Ask questions and discuss ideas

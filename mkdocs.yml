@@ -1,0 +1,81 @@
+site_name: llmcomposer
+site_description: Compose music with an LLM copilot — a research exploration of cross-modal musical understanding
+site_url: https://alexnodeland.github.io/llmcomposer/
+repo_url: https://github.com/alexnodeland/llmcomposer
+repo_name: alexnodeland/llmcomposer
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Research: research.md
+  - Architecture: architecture.md
+  - Development: development.md
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+extra_javascript:
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
+  - https://unpkg.com/@mermaid-js/layout-elk@0.1/dist/mermaid-layout-elk.min.js
+  - javascripts/mermaid.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/alexnodeland/llmcomposer
