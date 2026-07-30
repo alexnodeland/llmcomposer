@@ -28,10 +28,61 @@ from .models import ScoreUpdate, TurnMeta
 def resolve_model() -> str:
     """Return the configured model name.
 
-    Reads ``LLMCOMPOSER_MODEL`` and falls back to :data:`DEFAULT_MODEL`.
-    Set ``LLMCOMPOSER_MODEL=offline`` to use the built-in offline composer.
+    Reads ``LLMCOMPOSER_MODEL``, then the first entry of
+    ``LLMCOMPOSER_MODELS``, and falls back to :data:`DEFAULT_MODEL`. Set
+    ``LLMCOMPOSER_MODEL=offline`` to use the built-in offline composer.
     """
-    return os.environ.get("LLMCOMPOSER_MODEL", DEFAULT_MODEL)
+    configured = os.environ.get("LLMCOMPOSER_MODEL")
+    if configured:
+        return configured
+    models = os.environ.get("LLMCOMPOSER_MODELS", "")
+    first = models.split(",")[0].strip()
+    return first or DEFAULT_MODEL
+
+
+def available_models() -> list[str]:
+    """Return the model names offered in the studio's model selector.
+
+    Reads ``LLMCOMPOSER_MODELS`` (comma-separated) when set, otherwise the
+    single model from :func:`resolve_model`. The ``offline`` composer is
+    always included so the studio works with no credentials.
+    """
+    configured = os.environ.get("LLMCOMPOSER_MODELS")
+    if configured:
+        names = [name.strip() for name in configured.split(",") if name.strip()]
+    else:
+        names = [resolve_model()]
+    if "offline" not in names:
+        names.append("offline")
+    return names
+
+
+def build_model(name: str) -> tuple[Model | str, str]:
+    """Resolve a configured model name into a runnable model plus a label.
+
+    ``offline`` selects the built-in deterministic composer. Names prefixed
+    ``litellm:`` are routed through a LiteLLM proxy configured with
+    ``LITELLM_BASE_URL`` and ``LITELLM_API_KEY``. Anything else is passed
+    through as a pydantic-ai model name (``anthropic:claude-opus-5``, …).
+    """
+    if name == "offline":
+        from .offline import offline_model
+
+        model = offline_model()
+        return model, f"{model.system}:{model.model_name}"
+    if name.startswith("litellm:"):
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.litellm import LiteLLMProvider
+
+        model = OpenAIChatModel(
+            name.removeprefix("litellm:"),
+            provider=LiteLLMProvider(
+                api_key=os.environ.get("LITELLM_API_KEY"),
+                api_base=os.environ.get("LITELLM_BASE_URL"),
+            ),
+        )
+        return model, name
+    return name, name
 
 
 class ComposerSession:
@@ -46,22 +97,28 @@ class ComposerSession:
     """
 
     def __init__(self, model: Model | str | None = None) -> None:
-        resolved = model if model is not None else resolve_model()
-        if resolved == "offline":
-            from .offline import offline_model
-
-            resolved = offline_model()
-        self._model: Model | str = resolved
+        if isinstance(model, Model):
+            self._model: Model | str = model
+            self._label = f"{model.system}:{model.model_name}"
+        else:
+            self._model, self._label = build_model(
+                model if model is not None else resolve_model()
+            )
         self._history: list[ModelMessage] = []
         self.abc: str | None = None
 
     @property
     def model_name(self) -> str:
         """A human-readable label for the session's model."""
-        model = self._model
-        if isinstance(model, Model):
-            return f"{model.system}:{model.model_name}"
-        return model
+        return self._label
+
+    def set_model(self, name: str) -> None:
+        """Switch the session to another model, keeping history and score.
+
+        The conversation and the working score carry over — the new model
+        picks up the same collaboration mid-stream.
+        """
+        self._model, self._label = build_model(name)
 
     @property
     def history(self) -> list[ModelMessage]:

@@ -118,9 +118,17 @@ the right.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `LLMCOMPOSER_MODEL` | `anthropic:claude-opus-5` | Any pydantic-ai model name, or `offline` |
+| `LLMCOMPOSER_MODEL` | `anthropic:claude-opus-5` | Any pydantic-ai model name, `litellm:<model>`, or `offline` |
+| `LLMCOMPOSER_MODELS` | — | Comma-separated list offered in the studio's model selector (`offline` is always included) |
 | `ANTHROPIC_API_KEY` | — | Credentials for the default Anthropic model |
+| `LITELLM_BASE_URL` | — | Your LiteLLM proxy, for `litellm:` model names |
+| `LITELLM_API_KEY` | — | Key for the LiteLLM proxy |
 | `LOGFIRE_TOKEN` | — | Enables Logfire tracing when set |
+
+`make run` loads `.env` automatically when one exists. The model selector
+switches the composer mid-collaboration — the conversation and working
+score carry over, so the same tune can be revised by different models
+back-to-back and compared.
 
 ## 📚 Documentation
 

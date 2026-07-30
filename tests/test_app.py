@@ -33,6 +33,31 @@ def test_chat_rejects_empty_message():
     assert res.status_code == 422
 
 
+def test_models_endpoint_lists_and_switches(monkeypatch):
+    monkeypatch.setenv("LLMCOMPOSER_MODELS", "offline")
+    with make_client() as client:
+        listing = client.get("/models").json()
+        assert listing["models"] == ["offline"]
+
+        res = client.post("/model", json={"model": "offline"})
+        assert res.status_code == 200
+        assert "offline-composer" in res.json()["model"]
+
+        unknown = client.post("/model", json={"model": "nope:nothere"})
+        assert unknown.status_code == 404
+
+
+def test_model_switch_keeps_the_score(monkeypatch):
+    monkeypatch.setenv("LLMCOMPOSER_MODELS", "offline")
+    with make_client() as client:
+        first = client.post("/chat", json={"message": "like rain on a window"})
+        client.post("/model", json={"model": "offline"})
+        revised = client.post("/chat", json={"message": "make it slower"})
+    assert first.status_code == 200
+    assert revised.status_code == 200
+    validate_abc(revised.json()["abc"])
+
+
 def test_chat_stream_emits_events_and_final():
     import json
 

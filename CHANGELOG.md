@@ -5,6 +5,15 @@ on [Keep a Changelog](https://keepachangelog.com/); the project is pre-1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Model selector** in the studio: `LLMCOMPOSER_MODELS` configures a list
+  of models, a dropdown switches the composer mid-collaboration (the
+  conversation and working score carry over), and `litellm:<model>` names
+  route through a LiteLLM proxy (`LITELLM_BASE_URL` / `LITELLM_API_KEY`) —
+  one key for GLM, MiniMax, Claude, GPT, Gemini, and more. `make run` now
+  loads `.env` automatically.
+
 ### Changed
 
 - **pydantic-ai 1.0 → 2.x**: `output_retries` became `retries={"output": …}`,

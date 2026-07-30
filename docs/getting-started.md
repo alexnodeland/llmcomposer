@@ -45,11 +45,20 @@ count, token spend, and correction count.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `LLMCOMPOSER_MODEL` | `anthropic:claude-opus-5` | Any pydantic-ai model name, or `offline` |
+| `LLMCOMPOSER_MODEL` | `anthropic:claude-opus-5` | Any pydantic-ai model name, `litellm:<model>`, or `offline` |
+| `LLMCOMPOSER_MODELS` | — | Comma-separated list offered in the studio's model selector (`offline` is always included) |
 | `ANTHROPIC_API_KEY` | — | Credentials for the default Anthropic model |
+| `LITELLM_BASE_URL` | — | Your LiteLLM proxy, for `litellm:` model names |
+| `LITELLM_API_KEY` | — | Key for the LiteLLM proxy |
 | `LOGFIRE_TOKEN` | — | Enables Logfire tracing when set |
+
+`make run` loads `.env` automatically when one exists (see `.env.example`).
 
 Because the agent binds no model, any provider pydantic-ai supports works —
 set `LLMCOMPOSER_MODEL` to e.g. `openai:gpt-5` with the matching credentials
-in the environment. Comparing providers on the same prompts is part of the
-point; see [Research](research.md).
+in the environment, or point `litellm:<model>` names at a
+[LiteLLM proxy](https://docs.litellm.ai/) to reach many providers with one
+key. Comparing providers on the same prompts is part of the point — the
+studio's model selector switches the composer mid-collaboration, keeping
+the conversation and working score, so different models can revise the
+same tune back-to-back. See [Research](research.md).

@@ -38,10 +38,10 @@ test:
 test-cov:
 	uv run pytest --cov=llmcomposer --cov-report=term --cov-report=html
 
-# Run the studio against a real model (needs ANTHROPIC_API_KEY or
-# LLMCOMPOSER_MODEL pointing at another provider).
+# Run the studio against a real model (needs ANTHROPIC_API_KEY, or a
+# LiteLLM proxy / other provider configured in .env — loaded when present).
 run:
-	uv run llmcomposer
+	uv run $(if $(wildcard .env),--env-file .env) llmcomposer
 
 # Run entirely offline — the built-in FunctionModel composes deterministic
 # tunes, no credentials or network needed.
