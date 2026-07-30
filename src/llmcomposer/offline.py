@@ -3,14 +3,27 @@
 Implemented as a :class:`pydantic_ai.models.function.FunctionModel`, so the
 whole application stack — agent, validators, session, web app — runs
 unchanged; only the model is swapped. Selected with ``LLMCOMPOSER_MODEL=offline``.
+
+This is the study's null hypothesis: a keyword control, not a music-blind
+one. It reads the prompt exactly twice — a small mood table picks the key,
+tempo and title, and a second word list decides whether to add a third
+voice — and it says so in its own reply. Nothing else about the text
+reaches the music, and there is no musical understanding anywhere in it:
+that is the floor a model has to beat.
+
+The seed is a ``blake2b`` digest of the normalized prompt rather than
+:func:`hash`, whose string hashing is salted per process — so the same words
+give the same tune in every interpreter, forever.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from pydantic_ai.messages import (
     ModelMessage,
@@ -26,10 +39,16 @@ from pydantic_ai.models.function import (
     FunctionModel,
 )
 
-_SCALES: dict[str, list[str]] = {
+_METER = "4/4"
+_UNIT_LENGTH = "1/8"
+_BARS = 8
+
+# Every scale sits in the flute-safe octave (lowest note C4); lower voices
+# are register-shifted copies, so no part is ever written under its range.
+_BASE_SCALES: dict[str, list[str]] = {
     "C": ["C", "D", "E", "F", "G", "A", "B", "c"],
-    "G": ["G,", "A,", "B,", "C", "D", "E", "F", "G"],
-    "Am": ["A,", "B,", "C", "D", "E", "F", "G", "A"],
+    "G": ["G", "A", "B", "c", "d", "e", "f", "g"],
+    "Am": ["A", "B", "c", "d", "e", "f", "g", "a"],
     "Em": ["E", "F", "G", "A", "B", "c", "d", "e"],
     "Ddor": ["D", "E", "F", "G", "A", "B", "c", "d"],
 }
@@ -42,6 +61,36 @@ _MOODS: list[tuple[tuple[str, ...], str, int, str]] = [
 ]
 
 _SCORE_TAG = re.compile(r"<current_score>\n(.*?)\n</current_score>", re.DOTALL)
+_NOTE_TOKEN = re.compile(r"^([_^=]*)([A-Ga-g])([,']*)$")
+
+
+@dataclass(frozen=True)
+class _Voice:
+    """One staff of the baseline arrangement."""
+
+    name: str
+    sname: str
+    clef: str
+    program: int
+    octaves: int
+
+
+_FLUTE = _Voice(name="flute", sname="fl.", clef="treble", program=73, octaves=0)
+# The harp's ostinato is written an octave down (D3-A3), so it reads on a
+# bass staff; on a treble one every note of it would sit on ledger lines.
+# The offsets are fixed rather than re-anchored per key: in the higher keys
+# (Am) the harp drifts a ledger line or two above the bass staff, but every
+# per-key re-anchoring either collides the harp with the cello (introducing
+# voice crossings) or pushes the cello below its playable C2 — a few ledger
+# lines is the cheapest of the three defects.
+_HARP = _Voice(name="harp", sname="hp.", clef="bass", program=46, octaves=-1)
+_CELLO = _Voice(name="cello", sname="vc.", clef="bass", program=42, octaves=-2)
+
+
+def _seed(prompt: str) -> int:
+    """Derive a process-stable RNG seed from the normalized prompt."""
+    normalized = " ".join(prompt.lower().split()).encode()
+    return int.from_bytes(hashlib.blake2b(normalized, digest_size=4).digest(), "big")
 
 
 def _last_user_prompt(messages: list[ModelMessage]) -> str:
@@ -73,9 +122,40 @@ def _existing_key(messages: list[ModelMessage]) -> str | None:
         match = _SCORE_TAG.search(instructions)
         if match:
             headers = re.search(r"^K:\s*(\S+)", match.group(1), re.MULTILINE)
-            if headers and headers.group(1) in _SCALES:
+            if headers and headers.group(1) in _BASE_SCALES:
                 return headers.group(1)
     return None
+
+
+def _transpose(token: str, octaves: int) -> str:
+    """Shift a bare ABC note token by whole octaves.
+
+    Parameters
+    ----------
+    token : str
+        A note token with no duration, e.g. ``"C"``, ``"^f"``, ``"A,"``.
+    octaves : int
+        How many octaves to move; negative goes down.
+
+    Returns
+    -------
+    str
+        The transposed token in canonical ABC octave spelling.
+    """
+    match = _NOTE_TOKEN.match(token)
+    if match is None:
+        raise ValueError(f"'{token}' is not a bare ABC note token")
+    accidental, letter, marks = match.groups()
+    octave = (4 if letter.isupper() else 5) + marks.count("'") - marks.count(",")
+    octave += octaves
+    if octave >= 5:
+        return accidental + letter.lower() + "'" * (octave - 5)
+    return accidental + letter.upper() + "," * (4 - octave)
+
+
+def _register(scale: list[str], octaves: int) -> list[str]:
+    """Return ``scale`` shifted into another voice's register."""
+    return [_transpose(token, octaves) for token in scale]
 
 
 def _compose_bars(scale: list[str], rng: random.Random, bars: int) -> list[str]:
@@ -97,18 +177,9 @@ def _compose_bars(scale: list[str], rng: random.Random, bars: int) -> list[str]:
     return out
 
 
-def _lower_octave(token: str) -> str:
-    """Drop an ABC note token one octave (lowercase -> upper, upper -> ,)."""
-    head = token.rstrip(",'")
-    if head and head[-1].islower():
-        return head[:-1] + head[-1].upper() + token[len(head) :].replace("'", "")
-    return token + ","
-
-
 def _bass_bars(scale: list[str], bars: int) -> list[str]:
-    """Build root-and-fifth half notes below the melody's register."""
-    root = _lower_octave(scale[0])
-    fifth = _lower_octave(scale[4])
+    """Build root-and-fifth half notes in the bass voice's own register."""
+    root, fifth = scale[0], scale[4]
     line = [f"{root}4 {fifth}4" for _ in range(bars)]
     line[-1] = f"{root}8"
     return line
@@ -136,34 +207,40 @@ def _body_lines(bars: list[str], closing: str = " |]") -> str:
     return f"{first}\n{second}"
 
 
+def _arrangement(prompt: str, key: str, rng: random.Random) -> list[tuple[_Voice, str]]:
+    """Choose the voices and write each one's bars in its own register."""
+    base = _BASE_SCALES[key]
+    parts: list[tuple[_Voice, list[str]]] = [
+        (_FLUTE, _compose_bars(_register(base, _FLUTE.octaves), rng, _BARS))
+    ]
+    if _wants_trio(prompt):
+        parts.append((_HARP, _harmony_bars(_register(base, _HARP.octaves), _BARS)))
+    parts.append((_CELLO, _bass_bars(_register(base, _CELLO.octaves), _BARS)))
+    return [(voice, _body_lines(bars)) for voice, bars in parts]
+
+
 def _compose(prompt: str, key: str | None) -> tuple[str, str]:
     """Compose a reply and a complete multi-voice ABC arrangement."""
     mood_key, tempo, title = _pick_mood(prompt)
     key = key or mood_key
-    rng = random.Random(hash(prompt) & 0xFFFFFFFF)
-    scale = _SCALES[key]
-    melody = _compose_bars(scale, rng, bars=8)
-
-    voices = [("1", "flute", 73, _body_lines(melody))]
-    instruments = ["flute"]
-    if _wants_trio(prompt):
-        voices.append(("2", "harp", 46, _body_lines(_harmony_bars(scale, 8))))
-        instruments.append("harp")
-    voices.append(
-        (str(len(voices) + 1), "cello", 42, _body_lines(_bass_bars(scale, 8)))
-    )
-    instruments.append("cello")
+    parts = _arrangement(prompt, key, random.Random(_seed(prompt)))
 
     declarations = "".join(
-        f'V:{vid} name="{name}"\n%%MIDI program {program}\n'
-        for vid, name, program, _ in voices
+        f'V:{n} name="{voice.name}" sname="{voice.sname}" clef={voice.clef}\n'
+        f"%%MIDI program {voice.program}\n"
+        for n, (voice, _) in enumerate(parts, start=1)
     )
-    body = "".join(f"V:{vid}\n{line}\n" for vid, _, _, line in voices)
-    abc = f"X:1\nT:{title}\nM:4/4\nL:1/8\nQ:1/4={tempo}\n{declarations}K:{key}\n{body}"
+    staves = " ".join(str(n) for n in range(1, len(parts) + 1))
+    body = "".join(f"V:{n}\n{lines}\n" for n, (_, lines) in enumerate(parts, start=1))
+    # %%score must precede the V: declarations or the bracket is engraved
+    # around the first staff alone instead of around the system.
+    abc = (
+        f"X:1\nT:{title}\nM:{_METER}\nL:{_UNIT_LENGTH}\nQ:1/4={tempo}\n"
+        f"%%score [{staves}]\n{declarations}K:{key}\n{body}"
+    )
     reply = (
-        f"i heard '{prompt.strip()[:60]}' as {key} at {tempo} bpm — "
-        f"{', '.join(instruments)} together, the melody wandering home to "
-        "the tonic. tell me where to bend it."
+        f"baseline: {key} at {tempo} bpm, chosen by keyword match from a "
+        "small mood table — no musical understanding, just the floor to beat."
     )
     return reply, abc
 
