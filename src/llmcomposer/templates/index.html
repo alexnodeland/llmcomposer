@@ -151,6 +151,18 @@
     padding: 0 16px 10px;
     letter-spacing: 0.04em;
   }
+  #model-select {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--dim);
+    background: transparent;
+    border: none;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    max-width: 70%;
+  }
+  #model-select:focus { outline: none; color: var(--moss); }
+  #model-select option { background: var(--ground); }
 
   /* ---------- score column ---------- */
   #stage { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -355,7 +367,13 @@
         placeholder="tell it how the music should feel&hellip;" aria-label="message the composer">
       <button id="send">send</button>
     </div>
-    <div id="model-label">model &middot; {{ model_name }}</div>
+    <div id="model-label">model &middot;
+      <select id="model-select" aria-label="choose the composer model">
+        {% for m in models %}
+        <option value="{{ m }}"{% if m == model_name %} selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </aside>
 
   <main id="stage">
@@ -744,6 +762,27 @@ $("midibtn").addEventListener("click", () => {
   a.download = "llmcomposer-" + name + ".mid";
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+let currentModel = $("model-select").value;
+$("model-select").addEventListener("change", async () => {
+  const sel = $("model-select");
+  const chosen = sel.value;
+  sel.disabled = true;
+  try {
+    const res = await fetch("/model", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: chosen }),
+    });
+    if (!res.ok) throw new Error("switch failed");
+    currentModel = chosen;
+    addMsg("switched to " + chosen + " — same tune, a new composer picks it up.", "bot");
+  } catch {
+    sel.value = currentModel;
+    addMsg("couldn't switch to " + chosen + " — staying with " + currentModel + ".", "bot");
+  }
+  sel.disabled = false;
 });
 
 $("resetbtn").addEventListener("click", async () => {

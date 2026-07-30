@@ -14,8 +14,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.models import Model
 
-from .models import ChatRequest, ChatResponse
-from .session import ComposerSession
+from .models import ChatRequest, ChatResponse, ModelSelectRequest
+from .session import ComposerSession, available_models
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -43,8 +43,22 @@ def create_app(model: Model | str | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
         return _TEMPLATES.TemplateResponse(
-            request, "index.html", {"model_name": session.model_name}
+            request,
+            "index.html",
+            {"model_name": session.model_name, "models": available_models()},
         )
+
+    @app.get("/models")
+    async def models() -> dict[str, object]:
+        return {"models": available_models(), "current": session.model_name}
+
+    @app.post("/model")
+    async def select_model(payload: ModelSelectRequest) -> dict[str, str]:
+        if payload.model not in available_models():
+            raise HTTPException(status_code=404, detail="unknown model")
+        async with lock:
+            session.set_model(payload.model)
+        return {"model": session.model_name}
 
     @app.post("/chat")
     async def chat(payload: ChatRequest) -> ChatResponse:

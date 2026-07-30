@@ -49,6 +49,12 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
+class ModelSelectRequest(BaseModel):
+    """A request to switch the session to another configured model."""
+
+    model: str
+
+
 class TurnMeta(BaseModel):
     """Transparency data for one composing turn.
 

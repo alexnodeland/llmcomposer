@@ -36,6 +36,39 @@ def test_model_name_label():
     assert "offline-composer" in session.model_name
 
 
+def test_available_models_env_parsing(monkeypatch):
+    from llmcomposer.session import available_models
+
+    monkeypatch.delenv("LLMCOMPOSER_MODELS", raising=False)
+    monkeypatch.setenv("LLMCOMPOSER_MODEL", "anthropic:claude-opus-5")
+    assert available_models() == ["anthropic:claude-opus-5", "offline"]
+
+    monkeypatch.setenv("LLMCOMPOSER_MODELS", "litellm:glm-4.6, litellm:gpt-4o ,offline")
+    assert available_models() == ["litellm:glm-4.6", "litellm:gpt-4o", "offline"]
+
+
+def test_build_model_routes_litellm_through_proxy(monkeypatch):
+    from llmcomposer.session import build_model
+
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy.test/v1")
+    monkeypatch.setenv("LITELLM_API_KEY", "sk-test")
+    model, label = build_model("litellm:glm-4.6")
+    assert label == "litellm:glm-4.6"
+    assert model.model_name == "glm-4.6"  # type: ignore[union-attr]
+    assert model.system == "litellm"  # type: ignore[union-attr]
+
+
+def test_set_model_keeps_history_and_score():
+    session = ComposerSession(model="offline")
+    update, _ = asyncio.run(session.send("like rain on a window"))
+    history_len = len(session.history)
+    session.set_model("offline")
+    assert session.abc == update.abc
+    assert len(session.history) == history_len
+    revised, _ = asyncio.run(session.send("keep going, a little brighter"))
+    validate_abc(revised.abc)
+
+
 def test_offline_arrangement_has_aligned_voices_and_patches():
     from llmcomposer.abc_notation import voice_bars
 
