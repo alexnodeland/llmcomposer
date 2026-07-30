@@ -38,8 +38,13 @@ export.
 
 Composition streams live — you watch the score being written ("writing the
 score · 512 chars"), and if the validator bounces it you see the rewrite
-happen. Every composer reply carries turn telemetry — elapsed time, request
-count, token spend, and correction count.
+happen, with the error code and the reason the model was given. Every
+composer reply carries turn telemetry — elapsed time, request count, token
+spend, prompt version, and each bounce.
+
+Each browser holds its own session, keyed by a cookie, so two people (or two
+eval workers) on the same server never share a conversation or a working
+score.
 
 ## Configuration
 
@@ -50,9 +55,16 @@ count, token spend, and correction count.
 | `ANTHROPIC_API_KEY` | — | Credentials for the default Anthropic model |
 | `LITELLM_BASE_URL` | — | Your LiteLLM proxy, for `litellm:` model names |
 | `LITELLM_API_KEY` | — | Key for the LiteLLM proxy |
+| `LLMCOMPOSER_TEMPERATURE` | — | Sampling temperature; recorded with every turn |
+| `LLMCOMPOSER_SEED` | — | Sampling seed, where the provider supports one |
+| `LLMCOMPOSER_RECORD_DIR` | — | When set, appends one JSONL record per turn (prompt, reply, ABC, telemetry, bounces) |
 | `LOGFIRE_TOKEN` | — | Enables Logfire tracing when set |
 
 `make run` loads `.env` automatically when one exists (see `.env.example`).
+
+Point `LLMCOMPOSER_RECORD_DIR` at a directory and every turn — yours or a
+batch runner's — lands in an append-only JSONL log. That log is what the
+`evals/` scorer reads; see [Research](research.md#how-the-system-measures).
 
 Because the agent binds no model, any provider pydantic-ai supports works —
 set `LLMCOMPOSER_MODEL` to e.g. `openai:gpt-5` with the matching credentials

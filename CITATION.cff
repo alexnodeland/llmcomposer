@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use llmcomposer in your work, please cite it as below."
+type: software
+title: llmcomposer
+abstract: >-
+  An instrument for probing the cross-modal musical understanding of
+  language models: an LLM copilot composes and revises music in ABC
+  notation under a deliberately strict validator, and every turn — including
+  every validator rejection and its typed error code — is recorded.
+authors:
+  - family-names: Nodeland
+    given-names: Alex
+    email: alex@ournature.studio
+license: MIT
+version: 0.1.0
+repository-code: "https://github.com/alexnodeland/llmcomposer"
+url: "https://alexnodeland.github.io/llmcomposer/"
+keywords:
+  - music
+  - symbolic-music-generation
+  - abc-notation
+  - large-language-models
+  - llm-evaluation
