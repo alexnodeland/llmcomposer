@@ -1,0 +1,12 @@
+# Default owner for everything in the repo.
+* @alexnodeland
+
+# The ABC validator is the project's measurement instrument — changes to its
+# strictness change what the research results mean.
+/src/llmcomposer/abc_notation.py @alexnodeland
+
+# CI, release, and publishing configuration.
+/.github/ @alexnodeland
+
+# Documentation and the research write-up.
+/docs/ @alexnodeland

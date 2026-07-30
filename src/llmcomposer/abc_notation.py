@@ -16,6 +16,7 @@ message the model can act on.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from fractions import Fraction
 
 REQUIRED_HEADERS = ("X", "M", "L", "K")
@@ -152,14 +153,17 @@ class _BarParser:
         self.total += duration
 
     def _match_token(self, pos: int) -> int | None:
-        for regex, handler in (
+        handlers: tuple[
+            tuple[re.Pattern[str], Callable[[re.Match[str]], None]], ...
+        ] = (
             (_INLINE_FIELD, self._on_inline_field),
             (_TUPLET, self._on_tuplet),
             (_CHORD, self._on_chord),
             (_NOTE, lambda m: self._add(_duration(m.group(1)))),
             (_REST, lambda m: self._add(_duration(m.group(1)))),
             (_BIG_REST, self._on_big_rest),
-        ):
+        )
+        for regex, handler in handlers:
             match = regex.match(self.text, pos)
             if match:
                 handler(match)

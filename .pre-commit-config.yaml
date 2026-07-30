@@ -1,0 +1,25 @@
+# Local commit gate. Every hook here mirrors a step in .github/workflows/ci.yml,
+# so a clean `pre-commit run --all-files` means CI will not fail on lint or drift.
+# The test suite is the deliberate exception — it runs in CI and via `make test`,
+# not on every commit.
+#
+# Install: uv tool install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Run pyright through uv so it sees the locked environment — the
+      # pyright-python pre-commit mirror would need every runtime dep
+      # duplicated in additional_dependencies to type-check imports.
+      - id: pyright
+        name: pyright
+        entry: uv run pyright src
+        language: system
+        types: [python]
+        pass_filenames: false

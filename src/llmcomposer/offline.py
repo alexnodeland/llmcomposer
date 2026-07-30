@@ -82,7 +82,7 @@ def _compose_bars(scale: list[str], rng: random.Random, bars: int) -> list[str]:
     """Random-walk a melody over ``scale``; each bar is 8 eighth notes."""
     position = rng.randrange(2, 6)
     out: list[str] = []
-    for bar in range(bars):
+    for _ in range(bars):
         beats: list[str] = []
         for _ in range(4):
             position = max(0, min(7, position + rng.choice([-2, -1, -1, 1, 1, 2])))

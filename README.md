@@ -1,12 +1,104 @@
-# llmcomposer
+<div align="center">
 
-Compose music with an LLM copilot. You describe a feeling — *like rain on a
-window* — and a [pydantic-ai](https://ai.pydantic.dev) agent writes and
-revises a tune in ABC notation. The web app renders it as sheet music,
-plays it through the abcjs synth, and grows a generative field from the
-notes as they sound.
+# 🎼 llmcomposer
 
-## Quick start
+**Compose music with an LLM copilot.**
+
+*A research exploration of cross-modal musical understanding in language
+models: how well can they recreate music from text alone, and what is the
+nature of their audio understanding beyond lexical description?*
+
+[![CI](https://github.com/alexnodeland/llmcomposer/actions/workflows/ci.yml/badge.svg)](https://github.com/alexnodeland/llmcomposer/actions/workflows/ci.yml)
+[![Docs](https://github.com/alexnodeland/llmcomposer/actions/workflows/docs.yml/badge.svg)](https://alexnodeland.github.io/llmcomposer/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+[Documentation](https://alexnodeland.github.io/llmcomposer/) · [Getting Started](#-quick-start) · [Research](https://alexnodeland.github.io/llmcomposer/research/)
+
+</div>
+
+## Table of Contents
+
+- [🔬 Project Status](#-project-status)
+- [🤔 Why llmcomposer?](#-why-llmcomposer)
+- [✨ Features](#-features)
+- [🏗️ Architecture](#%EF%B8%8F-architecture)
+- [🚀 Quick Start](#-quick-start)
+- [⚙️ Configuration](#%EF%B8%8F-configuration)
+- [📚 Documentation](#-documentation)
+- [🛠️ Development](#%EF%B8%8F-development)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+
+## 🔬 Project Status
+
+llmcomposer is a **research exploration**, pre-1.0 and under active
+development. The instrument works and is fun to play, but the reason it
+exists is the research questions — a short research post on the findings is
+planned. APIs and behavior may change without notice.
+
+## 🤔 Why llmcomposer?
+
+Language models learn music almost entirely through text — reviews, theory,
+chord charts, symbolic notation. They have (mostly) never *heard* anything.
+Yet given *"like rain on a window"*, they produce scores that are
+recognizably shaped by the brief.
+
+llmcomposer turns that observation into an instrument you can probe:
+
+| The system provides | So you can observe |
+| --- | --- |
+| ABC notation as a symbolic bottleneck | The model must commit to pitches, durations, voices — not vibes |
+| A deliberately strict validator with a retry loop | Syntactic competence, separated from musical judgment |
+| Turn telemetry (time, requests, tokens, corrections) | The cost of getting to a valid score, per turn |
+| Live token-by-token streaming with visible bounces | The composition *process*, not just the output |
+| A deterministic offline composer | A music-blind baseline to judge claimed musicality against |
+| A model-agnostic agent | The same prompts across providers and generations |
+
+You describe a feeling; a [pydantic-ai](https://ai.pydantic.dev) agent
+writes and revises a tune in ABC notation; the web studio renders it as
+sheet music, plays it through the abcjs synth, and grows a generative field
+from the notes as they sound.
+
+## ✨ Features
+
+- 🎹 **Composer agent** — typed structured output (`ScoreUpdate`), dynamic
+  per-turn instructions carrying the working score, typed message history
+  with safe-boundary trimming.
+- 📏 **Strict ABC validation** — bar durations checked against the meter
+  per voice; multi-voice arrangements must align; malformed scores bounce
+  back to the model with an actionable reason via `ModelRetry`.
+- 🎻 **Multi-voice arrangements** — ask for *"a trio of flute, harp and
+  cello"* and the agent picks a General MIDI patch per instrument with
+  `%%MIDI program` directives.
+- 📡 **Live composition streaming** — watch the score being written
+  token-by-token, including validator bounces and rewrites, over
+  server-sent events.
+- 🎧 **A real player** — per-note highlighting across staves, progress bar,
+  loop mode, tempo slider, instrument legend, version history, raw-ABC
+  drawer, `.abc` / `.midi` export.
+- 📊 **Turn telemetry** — elapsed time, request count, token spend, and
+  correction count on every reply.
+- 🔌 **Offline mode** — a deterministic `FunctionModel` composer; the whole
+  stack (and the test suite) runs with no network and no credentials.
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    U[You: a feeling, in words] --> A[Composer agent]
+    A -->|ABC notation| V[Strict validator]
+    V -->|bounce + reason| A
+    V -->|valid score| S[Web studio]
+    S --> R[Sheet music · synth playback · telemetry]
+```
+
+See [Architecture](https://alexnodeland.github.io/llmcomposer/architecture/)
+for the full picture — including why pyabc2 and music21 were rejected in
+favor of a hand-built strict parser.
+
+## 🚀 Quick Start
 
 ```sh
 uv sync
@@ -20,52 +112,9 @@ LLMCOMPOSER_MODEL=offline uv run llmcomposer
 ```
 
 Then open <http://127.0.0.1:8000>. Chat on the left; the score appears on
-the right. Ask for *"a trio of flute, harp and cello"* and the agent writes a
-multi-voice arrangement, choosing a General MIDI patch per instrument with
-`%%MIDI program` directives.
+the right.
 
-The player highlights each note across all staves as it sounds, with a
-progress bar, loop mode, a tempo slider, an instrument legend, per-score
-version history, a raw-ABC source drawer with copy, and `.abc` / `.midi`
-export. Composition streams live — you watch the score being written
-("writing the score · 512 chars"), and if the validator bounces it you see
-the rewrite happen. Every composer reply carries turn telemetry — elapsed
-time, request count, token spend, and correction count.
-
-## How it's built
-
-The interesting parts are how deeply it leans on pydantic-ai:
-
-- **Typed structured output** — the agent's `output_type` is `ScoreUpdate`
-  (`reply` + complete `abc`), so every turn is validated Pydantic, never
-  free text ([`models.py`](src/llmcomposer/models.py)).
-- **Output validators with `ModelRetry`** — a strict ABC parser
-  ([`abc_notation.py`](src/llmcomposer/abc_notation.py)) tokenizes the tune
-  body, checks bar durations against the meter per voice, and verifies all
-  voices of an arrangement are the same length; malformed scores bounce
-  back to the model with an actionable reason and it retries. (pyabc2 and
-  music21 were evaluated and rejected: both are lenient parsers that
-  silently swallow exactly the errors the retry loop needs to catch.)
-- **Dynamic instructions** — the working score is injected each turn via
-  `@agent.instructions`, so the model always revises the same tune
-  ([`agent.py`](src/llmcomposer/agent.py)).
-- **Typed message history + history processors** — `ComposerSession` keeps
-  the `ModelMessage` history and a processor trims old runs at safe
-  boundaries ([`session.py`](src/llmcomposer/session.py)).
-- **Model-agnostic by construction** — the agent binds no model; the app
-  resolves one from `LLMCOMPOSER_MODEL`, tests use `TestModel` /
-  `FunctionModel` with `ALLOW_MODEL_REQUESTS = False`, and
-  [`offline.py`](src/llmcomposer/offline.py) is a `FunctionModel` that
-  composes deterministic tunes so the whole stack runs with no network.
-- **Event-stream handler** — `ComposerSession.send_stream` passes an
-  `event_stream_handler` to `agent.run`, translating pydantic-ai's
-  `PartStartEvent`/`PartDeltaEvent` stream into server-sent events, so the
-  UI shows the score being written token-by-token and every validator
-  bounce, while retries keep their normal non-streaming semantics.
-- **Logfire instrumentation** — `logfire.instrument_pydantic_ai()` is wired
-  in and activates when `LOGFIRE_TOKEN` is present.
-
-## Configuration
+## ⚙️ Configuration
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -73,10 +122,35 @@ The interesting parts are how deeply it leans on pydantic-ai:
 | `ANTHROPIC_API_KEY` | — | Credentials for the default Anthropic model |
 | `LOGFIRE_TOKEN` | — | Enables Logfire tracing when set |
 
-## Development
+## 📚 Documentation
+
+Full documentation lives at
+**[alexnodeland.github.io/llmcomposer](https://alexnodeland.github.io/llmcomposer/)**:
+[Getting Started](https://alexnodeland.github.io/llmcomposer/getting-started/) ·
+[Research](https://alexnodeland.github.io/llmcomposer/research/) ·
+[Architecture](https://alexnodeland.github.io/llmcomposer/architecture/) ·
+[Development](https://alexnodeland.github.io/llmcomposer/development/)
+
+## 🛠️ Development
 
 ```sh
-uv run pytest        # no network, no API key needed
-uv run ruff check src tests
-uv run pyright src
+make ci           # exactly what CI enforces: ruff check + format, pyright strict, pytest
+make check        # the everyday gate: lint, types, tests
+make run-offline  # start the studio with no credentials
+make docs         # serve the documentation locally
 ```
+
+The test suite needs no network and no API key. See
+[Development](https://alexnodeland.github.io/llmcomposer/development/) for
+the quality bar and sharp edges.
+
+## 🤝 Contributing
+
+Contributions are welcome — see
+[CONTRIBUTING](.github/CONTRIBUTING.md). Contributions that sharpen the
+measurement (validator coverage, telemetry, baselines) are as welcome as
+features.
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 Alex Nodeland

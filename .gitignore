@@ -1,12 +1,28 @@
+# Environments & secrets
 .venv
 .env
-.pytest_cache
+
+# Caches
 __pycache__
+*.pyc
+.pytest_cache
 .ruff_cache
 .mypy_cache
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# Build & docs output
+dist/
+site/
+*.egg-info/
+
+# Editors & OS
 .DS_Store
 .vscode
 .idea
-.pytest_cache
-.ruff_cache
-.mypy_cache
+
+# Tooling artifacts
+.playwright-mcp/
