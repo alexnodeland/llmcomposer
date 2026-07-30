@@ -1,0 +1,383 @@
+# The llmcomposer prompt suite.
+#
+# Each entry has a stable `id` (never reuse or renumber — results are keyed
+# on it), a `category`, and either `text` (a single turn) or `turns` (a
+# multi-turn conversation, run in order against one session).
+#
+# `expects` holds machine-checkable claims about the FINAL score of the
+# conversation. Supported keys (see evals/score.py:check_expects):
+#
+#   meter                 str   — the M: header, verbatim ("7/8")
+#   key_mode              str   — declared mode ("dorian", "minor", "major", …)
+#   key_root              str   — declared tonic letter, with accidental ("Bb")
+#   voices                int   — number of voices carrying music
+#   bars_min / bars_max   int   — bar count of the longest voice
+#   cadence               str   — authentic | plagal | half | deceptive
+#   no_range_violations   bool  — every voice inside its GM instrument's range
+#
+# Categories:
+#   cross_modal       no musical vocabulary at all — only image and feeling
+#   constraint        an explicit, verifiable musical instruction
+#   revision          multi-turn: compose, then critique, then check the fix
+#   timbral           instruments and register — does the model model sound?
+#   adversarial_meter meters and asymmetries models are known to fumble
+
+version: 1
+
+prompts:
+  # --- cross-modal: feeling and image, no music words --------------------
+  - id: cm-01
+    category: cross_modal
+    text: like rain on a window at four in the afternoon
+
+  - id: cm-02
+    category: cross_modal
+    text: the last person leaving a building they worked in for thirty years
+
+  - id: cm-03
+    category: cross_modal
+    text: cold water over smooth stones, very early, nobody else awake
+
+  - id: cm-04
+    category: cross_modal
+    text: a room where someone has just stopped arguing
+
+  - id: cm-05
+    category: cross_modal
+    text: the colour of a bruise three days old
+
+  - id: cm-06
+    category: cross_modal
+    text: standing at a bus stop in a town you used to live in
+
+  - id: cm-07
+    category: cross_modal
+    text: two people who like each other and haven't said so
+
+  - id: cm-08
+    category: cross_modal
+    text: static on a radio between two stations, late at night, driving
+
+  - id: cm-09
+    category: cross_modal
+    text: the moment a lift starts moving
+
+  - id: cm-10
+    category: cross_modal
+    text: dust in a shaft of sunlight in an empty church
+
+  - id: cm-11
+    category: cross_modal
+    text: something small and very fast that keeps getting away
+
+  - id: cm-12
+    category: cross_modal
+    text: the way a dog waits by the door
+
+  - id: cm-13
+    category: cross_modal
+    text: a photograph of people you don't recognise, in a house you do
+
+  - id: cm-14
+    category: cross_modal
+    text: relief, but the kind that arrives too late to enjoy
+
+  # --- verifiable constraints -------------------------------------------
+  - id: con-01
+    category: constraint
+    text: write me sixteen bars in D dorian
+    expects:
+      key_root: D
+      key_mode: dorian
+      bars_min: 16
+      bars_max: 16
+
+  - id: con-02
+    category: constraint
+    text: an eight-bar air in B flat major, single voice
+    expects:
+      key_root: Bb
+      key_mode: major
+      voices: 1
+      bars_min: 8
+      bars_max: 8
+
+  - id: con-03
+    category: constraint
+    text: a duet — two voices, twelve bars, E minor
+    expects:
+      key_root: E
+      key_mode: minor
+      voices: 2
+      bars_min: 12
+      bars_max: 12
+
+  - id: con-04
+    category: constraint
+    text: end it on a perfect cadence, please — sixteen bars in G major
+    expects:
+      key_root: G
+      key_mode: major
+      cadence: authentic
+      bars_min: 16
+
+  - id: con-05
+    category: constraint
+    text: a mixolydian tune on A, eight bars, nothing fancy
+    expects:
+      key_root: A
+      key_mode: mixolydian
+      bars_min: 8
+      bars_max: 8
+
+  - id: con-06
+    category: constraint
+    text: three voices, sixteen bars, F major, and let the bass move mostly by root and fifth
+    expects:
+      key_root: F
+      key_mode: major
+      voices: 3
+      bars_min: 16
+
+  - id: con-07
+    category: constraint
+    text: something in E phrygian — lean into the flat second
+    expects:
+      key_root: E
+      key_mode: phrygian
+
+  - id: con-08
+    category: constraint
+    text: a lydian sketch on F, eight bars
+    expects:
+      key_root: F
+      key_mode: lydian
+      bars_min: 8
+      bars_max: 8
+
+  - id: con-09
+    category: constraint
+    text: exactly twenty-four bars, one voice, C minor
+    expects:
+      key_root: C
+      key_mode: minor
+      voices: 1
+      bars_min: 24
+      bars_max: 24
+
+  - id: con-10
+    category: constraint
+    text: a plagal ending — twelve bars in D major, land on the amen
+    expects:
+      key_root: D
+      cadence: plagal
+
+  - id: con-11
+    category: constraint
+    text: leave it hanging on the dominant, sixteen bars in A minor
+    expects:
+      key_root: A
+      key_mode: minor
+      cadence: half
+
+  - id: con-12
+    category: constraint
+    text: four voices, eight bars, C major, everyone with a different rhythm
+    expects:
+      key_root: C
+      voices: 4
+      bars_min: 8
+      bars_max: 8
+
+  # --- revision under critique ------------------------------------------
+  - id: rev-01
+    category: revision
+    turns:
+      - a slow tune for a winter morning
+      - it wanders — make the second half answer the first half instead
+
+  - id: rev-02
+    category: revision
+    turns:
+      - eight bars of anything cheerful in G
+      - now put it in G minor and keep the shape of the melody
+    expects:
+      key_root: G
+      key_mode: minor
+
+  - id: rev-03
+    category: revision
+    turns:
+      - a duet for flute and cello
+      - the cello is too high — it should sit under the flute, not beside it
+    expects:
+      voices: 2
+      no_range_violations: true
+
+  - id: rev-04
+    category: revision
+    turns:
+      - something restless in twelve bars
+      - too many notes. let it breathe — take a third of them out
+    expects:
+      bars_min: 12
+
+  - id: rev-05
+    category: revision
+    turns:
+      - a simple air in D
+      - add a second voice below it that answers each phrase
+    expects:
+      voices: 2
+
+  - id: rev-06
+    category: revision
+    turns:
+      - write me eight bars in 4/4
+      - keep every note, but rebar it into 3/4
+    expects:
+      meter: 3/4
+
+  - id: rev-07
+    category: revision
+    turns:
+      - a tune that feels like waiting
+      - the ending is abrupt — give it a proper cadence
+    expects:
+      cadence: authentic
+
+  - id: rev-08
+    category: revision
+    turns:
+      - a trio, sixteen bars, anything you like
+      - the middle voice is doing nothing. give it a real line
+    expects:
+      voices: 3
+
+  - id: rev-09
+    category: revision
+    turns:
+      - a bright little tune in C
+      - now make it sound uneasy without changing the key
+    expects:
+      key_root: C
+
+  - id: rev-10
+    category: revision
+    turns:
+      - something in 6/8 that lilts
+      - i liked bar one. build the whole thing out of it
+    expects:
+      meter: 6/8
+
+  # --- timbre and register ----------------------------------------------
+  - id: tim-01
+    category: timbral
+    text: a trio for flute, harp and cello — give each one a register it can actually play
+    expects:
+      voices: 3
+      no_range_violations: true
+
+  - id: tim-02
+    category: timbral
+    text: write for tuba and piccolo. yes, really
+    expects:
+      voices: 2
+      no_range_violations: true
+
+  - id: tim-03
+    category: timbral
+    text: a duet for two clarinets that would sound muddy — then fix it
+    expects:
+      voices: 2
+
+  - id: tim-04
+    category: timbral
+    text: string quartet texture — violin, violin, viola, cello
+    expects:
+      voices: 4
+      no_range_violations: true
+
+  - id: tim-05
+    category: timbral
+    text: something for solo double bass, low and slow
+    expects:
+      voices: 1
+      no_range_violations: true
+
+  - id: tim-06
+    category: timbral
+    text: a brass trio — trumpet, horn, trombone — sixteen bars of chorale
+    expects:
+      voices: 3
+      no_range_violations: true
+
+  - id: tim-07
+    category: timbral
+    text: vibraphone and acoustic bass, nothing else, late-night
+    expects:
+      voices: 2
+      no_range_violations: true
+
+  - id: tim-08
+    category: timbral
+    text: give the oboe the melody and let the harp do almost nothing
+    expects:
+      voices: 2
+      no_range_violations: true
+
+  # --- adversarial meters -----------------------------------------------
+  - id: met-01
+    category: adversarial_meter
+    text: sixteen bars in 7/8 that actually feel like 7/8
+    expects:
+      meter: 7/8
+      bars_min: 16
+
+  - id: met-02
+    category: adversarial_meter
+    text: a 5/4 tune, eight bars, grouped 3+2
+    expects:
+      meter: 5/4
+      bars_min: 8
+      bars_max: 8
+
+  - id: met-03
+    category: adversarial_meter
+    text: write in 11/8 and make it dance
+    expects:
+      meter: 11/8
+
+  - id: met-04
+    category: adversarial_meter
+    text: 9/8, jig-like, twelve bars
+    expects:
+      meter: 9/8
+      bars_min: 12
+
+  - id: met-05
+    category: adversarial_meter
+    text: something in 3/2 — slow, wide bars
+    expects:
+      meter: 3/2
+
+  - id: met-06
+    category: adversarial_meter
+    text: a two-voice canon in 7/4, sixteen bars, both voices the same length
+    expects:
+      meter: 7/4
+      voices: 2
+      bars_min: 16
+
+  - id: met-07
+    category: adversarial_meter
+    text: 13/8. i know. do it anyway
+    expects:
+      meter: 13/8
+
+  - id: met-08
+    category: adversarial_meter
+    text: a trio in 5/8 where the bass sits still and the top voice hurries
+    expects:
+      meter: 5/8
+      voices: 3

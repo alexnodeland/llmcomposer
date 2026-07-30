@@ -1,4 +1,4 @@
-.PHONY: ci check lint lint-fix format format-check type-check test test-cov run run-offline docs docs-build clean
+.PHONY: ci check lint lint-fix format format-check type-check test test-cov run run-offline eval docs docs-build clean
 
 # CI — emulate the GitHub Actions pipeline locally. `make check` is the
 # shorter everyday gate; `make ci` is byte-for-byte what CI enforces.
@@ -47,6 +47,12 @@ run:
 # tunes, no credentials or network needed.
 run-offline:
 	LLMCOMPOSER_MODEL=offline uv run llmcomposer
+
+# A smoke sweep of the prompt suite against the offline baseline, scored
+# into a markdown table. Needs no credentials. See evals/README.md for
+# real sweeps across models.
+eval:
+	uv run python evals/run.py --models offline --repeats 1 --out evals/results/smoke.jsonl && uv run python evals/score.py evals/results/smoke.jsonl
 
 docs:
 	uv run --group docs mkdocs serve
