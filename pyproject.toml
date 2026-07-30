@@ -12,7 +12,7 @@ dependencies = [
     "jinja2>=3.1",
     "logfire>=4.3.6",
     "pydantic>=2.11.7",
-    "pydantic-ai>=1.0.0",
+    "pydantic-ai>=2.21.0",
     "uvicorn>=0.30",
 ]
 
