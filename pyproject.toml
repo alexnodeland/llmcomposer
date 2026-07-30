@@ -8,12 +8,12 @@ description = "Compose music with an LLM copilot"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.141.1",
     "jinja2>=3.1",
     "logfire>=4.3.6",
-    "pydantic>=2.11.7",
+    "pydantic>=2.13.4",
     "pydantic-ai>=1.0.0",
-    "uvicorn>=0.30",
+    "uvicorn>=0.52.0",
 ]
 
 [project.scripts]
@@ -28,14 +28,23 @@ Changelog = "https://github.com/alexnodeland/llmcomposer/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.405",
+    "pyright>=1.1.411",
     "pytest>=8.4.2",
     "pytest-cov>=6.0",
-    "ruff>=0.12.12",
+    "ruff>=0.16.0",
 ]
 docs = [
     "mkdocs-material>=9.5",
     "mkdocs-minify-plugin>=0.8",
+]
+
+[tool.uv]
+# pydantic-ai 1.x imports opentelemetry._events, which was removed in newer
+# opentelemetry releases; this also holds logfire back, since recent logfire
+# requires the new opentelemetry. Drop when pydantic-ai moves to 2.x.
+constraint-dependencies = [
+    "opentelemetry-api<1.37",
+    "opentelemetry-sdk<1.37",
 ]
 
 [build-system]
