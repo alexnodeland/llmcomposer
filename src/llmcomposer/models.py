@@ -55,19 +55,53 @@ class ModelSelectRequest(BaseModel):
     model: str
 
 
+class ScoreRequest(BaseModel):
+    """A score the collaborator hands back to the studio as the working one.
+
+    Used to restore an earlier version, or to paste in a tune from
+    elsewhere. The ABC is validated before it becomes authoritative.
+    """
+
+    abc: str = Field(max_length=100_000)
+
+
+class Bounce(BaseModel):
+    """One validator rejection inside a single turn.
+
+    The datum the project is built to collect: which attempt was refused,
+    which error class refused it, what the validator said, and the exact
+    score the model had written when it was told to try again.
+    """
+
+    attempt: int
+    code: str
+    message: str
+    rejected_abc: str
+
+
 class TurnMeta(BaseModel):
     """Transparency data for one composing turn.
 
-    Surfaced in the UI so the collaboration is inspectable: which model ran,
-    how many requests it took, token spend, how often the score was bounced
-    back by the ABC validator, and wall-clock time.
+    Surfaced in the UI so the collaboration is inspectable: which model ran
+    under which prompt and sampling settings, how many requests it took,
+    token spend, how the score was bounced back by the ABC validator, and
+    wall-clock time. ``corrections`` is the length of ``bounces``.
+
+    ``prompt_version`` is the hand-declared name of the system prompt;
+    ``prompt_sha`` is its digest, so an undeclared edit to the study's
+    independent variable is visible in the run log.
     """
 
     model: str
+    prompt_version: str = ""
+    prompt_sha: str = ""
     requests: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
     corrections: int = 0
+    bounces: list[Bounce] = []
+    temperature: float | None = None
+    seed: int | None = None
     elapsed_ms: int = 0
 
 

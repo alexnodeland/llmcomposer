@@ -26,3 +26,6 @@ site/
 
 # Tooling artifacts
 .playwright-mcp/
+
+# Eval scratch output (real sweeps are committed deliberately)
+evals/results/smoke.jsonl
