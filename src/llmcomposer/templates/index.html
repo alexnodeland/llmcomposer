@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llmcomposer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%BC%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
+<style>
+  :root {
+    --ground: #070b0a;
+    --ink: rgba(13, 20, 18, 0.78);
+    --line: rgba(143, 227, 176, 0.12);
+    --text: #c7d2cc;
+    --dim: #66756e;
+    --faint: #3d4a44;
+    --moss: #8fe3b0;
+    --ochre: #d9b482;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-weight: 300;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  #field { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+
+  #layout {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    height: 100vh;
+    padding: 20px;
+  }
+
+  /* ---------- chat column ---------- */
+  #chat {
+    display: flex;
+    flex-direction: column;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    overflow: hidden;
+  }
+  #chat-head {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .wordmark { font-family: var(--mono); font-size: 19px; letter-spacing: 0.04em; }
+  .wordmark em { font-style: normal; color: var(--moss); }
+  .tagline {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    margin-top: 5px;
+    letter-spacing: 0.03em;
+  }
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--faint) transparent;
+  }
+  .msg { max-width: 94%; font-size: 13.5px; line-height: 1.55; }
+  .msg.user {
+    align-self: flex-end;
+    background: rgba(143, 227, 176, 0.08);
+    border: 1px solid rgba(143, 227, 176, 0.14);
+    border-radius: 8px 8px 2px 8px;
+    padding: 8px 12px;
+  }
+  .msg.bot { align-self: flex-start; }
+  .msg.bot::before {
+    content: "composer";
+    display: block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: var(--ochre);
+    margin-bottom: 4px;
+  }
+  .msg.err::before { content: "error"; color: #e08f7a; }
+  .msg.err { color: #b98d84; font-family: var(--mono); font-size: 12px; }
+  .msg.bot .delta {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 6px;
+    line-height: 1.8;
+    letter-spacing: 0.03em;
+  }
+  .msg.bot .delta b { color: var(--ochre); font-weight: 400; }
+  .typing { font-family: var(--mono); color: var(--dim); font-size: 12px; }
+  .typing span { animation: blink 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  .typing .tstat {
+    font-style: normal;
+    color: var(--ochre);
+    margin-left: 6px;
+    letter-spacing: 0.04em;
+  }
+  @keyframes blink { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
+
+  #composerbar { display: flex; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+  #prompt {
+    flex: 1;
+    background: rgba(7, 11, 10, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13.5px;
+    font-weight: 300;
+    padding: 10px 12px;
+  }
+  #prompt::placeholder { color: var(--faint); }
+  #prompt:focus { outline: none; border-color: rgba(143, 227, 176, 0.4); }
+  #send {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ground);
+    background: var(--moss);
+    border: none;
+    border-radius: 4px;
+    padding: 0 16px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  #send:hover { background: #a5efc2; }
+  #send:disabled { opacity: 0.4; cursor: default; }
+  #model-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--faint);
+    padding: 0 16px 10px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- score column ---------- */
+  #stage { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  #statusline {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--dim);
+    letter-spacing: 0.04em;
+    padding: 4px 2px 0;
+  }
+  #statusline .lit { color: var(--moss); }
+  #statusline .sep { color: var(--faint); padding: 0 6px; }
+  #meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #voices { display: flex; gap: 6px; flex-wrap: wrap; }
+  .voice-chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    letter-spacing: 0.04em;
+  }
+  .voice-chip b { color: var(--ochre); font-weight: 400; }
+  #versions { display: flex; gap: 5px; align-items: center; }
+  .vbtn {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--faint);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 7px;
+    cursor: pointer;
+  }
+  .vbtn.current { color: var(--moss); border-color: rgba(143, 227, 176, 0.4); }
+  .vbtn:hover { color: var(--text); }
+  #progress-track {
+    height: 2px;
+    background: var(--line);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  #progress { height: 100%; width: 0%; background: var(--moss); transition: width 0.15s linear; }
+  #score-panel {
+    flex: 0 1 auto;
+    min-height: 140px;
+    max-height: 62vh;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    overflow-y: auto;
+    padding: 26px 30px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--faint) transparent;
+    transition: border-color 0.5s;
+  }
+  #score-panel.fresh { border-color: rgba(143, 227, 176, 0.45); }
+  #score-panel.composing {
+    border-color: rgba(217, 180, 130, 0.4);
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+  #srcwrap {
+    display: none;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    backdrop-filter: blur(18px);
+    padding: 12px 16px;
+  }
+  #srcwrap.open { display: block; }
+  #srchead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  #copybtn {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 9px;
+    cursor: pointer;
+  }
+  #copybtn:hover { color: var(--moss); }
+  #abcsrc {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--dim);
+    white-space: pre;
+    overflow-x: auto;
+    margin: 0;
+    max-height: 32vh;
+    overflow-y: auto;
+  }
+  #warpwrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    margin-left: auto;
+  }
+  #warp {
+    width: 110px;
+    accent-color: var(--moss);
+    height: 2px;
+  }
+  #score-empty {
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--faint);
+    letter-spacing: 0.05em;
+    text-align: center;
+    line-height: 2.1;
+  }
+  #score svg { max-width: 100%; }
+  #score .abcjs-note_selected { fill: var(--moss); }
+  .abcjs-highlight { fill: var(--moss) !important; }
+  #transport { display: flex; align-items: center; gap: 10px; }
+  .tbtn {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    color: var(--dim);
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 9px 16px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: color 0.25s, border-color 0.25s;
+  }
+  .tbtn:hover:not(:disabled) { color: var(--text); border-color: rgba(143, 227, 176, 0.35); }
+  .tbtn.active { color: var(--moss); border-color: rgba(143, 227, 176, 0.4); }
+  .tbtn:disabled { opacity: 0.35; cursor: default; }
+
+  @media (max-width: 900px) {
+    #layout {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: 10px;
+      gap: 10px;
+      overflow-y: auto;
+    }
+    #stage { order: -1; flex: 0 0 auto; min-height: 0; gap: 8px; }
+    #score-panel { max-height: 34vh; padding: 14px; }
+    #abcsrc { max-height: 20vh; }
+    #chat { flex: 1 1 auto; min-height: 260px; }
+    #chat-head { padding: 10px 14px 8px; }
+    .wordmark { font-size: 16px; }
+    .tagline { font-size: 9.5px; }
+    #log { padding: 12px 14px; gap: 10px; }
+    #composerbar { padding: 10px 12px 12px; }
+    /* 16px stops iOS Safari from zooming the page on focus */
+    #prompt { font-size: 16px; padding: 9px 11px; }
+    #model-label { padding: 0 14px 8px; }
+    #statusline { font-size: 10px; }
+    #transport { flex-wrap: wrap; gap: 6px; }
+    .tbtn { padding: 7px 10px; font-size: 10.5px; }
+    #warpwrap { margin-left: 0; flex-basis: 100%; }
+    #warp { flex: 1; width: auto; max-width: 220px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="field"></canvas>
+
+<div id="layout">
+  <aside id="chat">
+    <div id="chat-head">
+      <div class="wordmark">llm<em>composer</em></div>
+      <div class="tagline">describe a feeling &mdash; the composer writes the score</div>
+    </div>
+    <div id="log" role="log" aria-live="polite"></div>
+    <div id="composerbar">
+      <input id="prompt" type="text" autocomplete="off"
+        placeholder="tell it how the music should feel&hellip;" aria-label="message the composer">
+      <button id="send">send</button>
+    </div>
+    <div id="model-label">model &middot; {{ model_name }}</div>
+  </aside>
+
+  <main id="stage">
+    <div id="meta-row">
+      <div id="statusline">waiting for a first feeling</div>
+      <div id="versions"></div>
+    </div>
+    <div id="voices"></div>
+    <div id="score-panel">
+      <div id="score-empty">no score yet<br>say something like &ldquo;like rain on a window&rdquo;</div>
+      <div id="score"></div>
+    </div>
+    <div id="progress-track"><div id="progress"></div></div>
+    <div id="transport">
+      <button class="tbtn" id="playbtn" disabled>play</button>
+      <button class="tbtn" id="loopbtn" disabled>loop off</button>
+      <button class="tbtn" id="dlbtn" disabled>download .abc</button>
+      <button class="tbtn" id="midibtn" disabled>download .midi</button>
+      <button class="tbtn" id="srcbtn" disabled>source</button>
+      <button class="tbtn" id="resetbtn">start over</button>
+      <label id="warpwrap">tempo
+        <input type="range" id="warp" min="0.6" max="1.4" step="0.05" value="1">
+        <span id="warplabel">&times;1.00</span>
+      </label>
+    </div>
+    <div id="srcwrap">
+      <div id="srchead"><span>abc source &mdash; what the composer wrote</span>
+        <button id="copybtn">copy</button></div>
+      <pre id="abcsrc"></pre>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+
+/* ---------------- state ---------------- */
+let currentABC = "";
+let visualObj = null;
+let synth = null, timer = null, audioCtx = null, playing = false;
+let looping = false;
+let highlighted = [];
+const versions = [];   // { abc, label }
+let viewingVersion = -1; // index into versions; -1 = live/latest
+
+const GM_NAMES = {
+  0: "piano", 4: "electric piano", 11: "vibraphone", 19: "church organ",
+  24: "nylon guitar", 25: "steel guitar", 32: "acoustic bass",
+  33: "fingered bass", 40: "violin", 41: "viola", 42: "cello",
+  43: "contrabass", 46: "harp", 48: "strings", 52: "choir", 56: "trumpet",
+  57: "trombone", 60: "french horn", 65: "alto sax", 68: "oboe",
+  71: "clarinet", 72: "piccolo", 73: "flute", 75: "pan flute",
+  78: "whistle", 79: "ocarina", 105: "banjo", 108: "kalimba",
+  114: "steel drums",
+};
+
+/* ---------------- chat ---------------- */
+const log = $("log");
+function addMsg(text, cls) {
+  const el = document.createElement("div");
+  el.className = "msg " + cls;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+let typingEl = null;
+function showTyping() {
+  typingEl = document.createElement("div");
+  typingEl.className = "msg bot typing";
+  typingEl.innerHTML =
+    '<span>&middot;</span><span>&middot;</span><span>&middot;</span> ' +
+    '<em class="tstat"></em>';
+  log.appendChild(typingEl);
+  log.scrollTop = log.scrollHeight;
+}
+function setTyping(text) {
+  if (!typingEl) showTyping();
+  typingEl.querySelector(".tstat").textContent = text;
+  log.scrollTop = log.scrollHeight;
+}
+function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
+
+function fmtTokens(n) {
+  return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
+}
+function appendMeta(el, meta) {
+  if (!meta) return;
+  const d = document.createElement("span");
+  d.className = "delta";
+  const bits = [
+    (meta.elapsed_ms / 1000).toFixed(1) + "s",
+    meta.requests + (meta.requests === 1 ? " request" : " requests"),
+  ];
+  if (meta.input_tokens || meta.output_tokens) {
+    bits.push(fmtTokens(meta.input_tokens) + " in / " + fmtTokens(meta.output_tokens) + " out");
+  }
+  d.innerHTML = bits.join(" &middot; ");
+  if (meta.corrections > 0) {
+    d.innerHTML += "<br><b>score bounced " + meta.corrections +
+      "&times;</b> by the abc validator &mdash; self-corrected";
+  }
+  el.appendChild(d);
+}
+
+function renderVersions() {
+  const wrap = $("versions");
+  wrap.innerHTML = "";
+  if (versions.length < 2) return;
+  versions.forEach((v, i) => {
+    const b = document.createElement("button");
+    b.className = "vbtn";
+    const isCurrent = viewingVersion === i ||
+      (viewingVersion === -1 && i === versions.length - 1);
+    if (isCurrent) b.classList.add("current");
+    b.textContent = v.label;
+    b.title = i === versions.length - 1 ? "latest" : "view this earlier score";
+    b.addEventListener("click", () => {
+      viewingVersion = i === versions.length - 1 ? -1 : i;
+      setScore(versions[i].abc);
+      renderVersions();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function renderVoices(abc) {
+  const wrap = $("voices");
+  wrap.innerHTML = "";
+  const re = /^V:(\S+)[^\n]*?name="([^"]+)"[^\n]*\n(?:%%MIDI program (\d+))?/gm;
+  let m;
+  const chips = [];
+  while ((m = re.exec(abc)) !== null) {
+    const program = m[3] !== undefined ? parseInt(m[3], 10) : null;
+    const voiceName = m[2].toLowerCase();
+    let patch = "";
+    if (program !== null) {
+      const patchName = GM_NAMES[program] || null;
+      patch = " &middot; <b>" +
+        (patchName && patchName !== voiceName ? patchName : "#" + program) +
+        "</b>";
+    }
+    chips.push({ id: m[1], html: escapeHtml(voiceName) + patch });
+  }
+  for (const c of chips) {
+    const el = document.createElement("span");
+    el.className = "voice-chip";
+    el.innerHTML = c.html;
+    wrap.appendChild(el);
+  }
+}
+
+function handleStreamEvent(ev) {
+  if (ev.type === "writing") {
+    if (ev.attempt > 1) {
+      setTyping("score bounced by the validator — rewriting (attempt " + ev.attempt + ")");
+    } else {
+      setTyping("writing the score");
+    }
+  } else if (ev.type === "progress") {
+    setTyping("writing the score · " + ev.chars + " chars");
+  } else if (ev.type === "final") {
+    hideTyping();
+    const el = addMsg(ev.reply, "bot");
+    appendMeta(el, ev.meta);
+    versions.push({ abc: ev.abc, label: "v" + (versions.length + 1) });
+    viewingVersion = -1;
+    setScore(ev.abc);
+    renderVersions();
+  } else if (ev.type === "error") {
+    hideTyping();
+    addMsg(String(ev.detail).slice(0, 300), "bot err");
+  }
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text) return;
+  addMsg(text, "user");
+  $("prompt").value = "";
+  $("send").disabled = true;
+  $("score-panel").classList.add("composing");
+  showTyping();
+  setTyping("listening");
+  try {
+    const res = await fetch("/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+    if (!res.ok || !res.body) {
+      hideTyping();
+      const detail = (await res.json().catch(() => ({}))).detail || res.statusText;
+      addMsg(String(detail).slice(0, 300), "bot err");
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let split;
+      while ((split = buffer.indexOf("\n\n")) >= 0) {
+        const chunk = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        if (chunk.startsWith("data: ")) {
+          handleStreamEvent(JSON.parse(chunk.slice(6)));
+        }
+      }
+    }
+    hideTyping();
+  } catch (err) {
+    hideTyping();
+    addMsg("could not reach the composer: " + err.message, "bot err");
+  } finally {
+    $("score-panel").classList.remove("composing");
+    $("send").disabled = false;
+    $("prompt").focus();
+  }
+}
+
+$("send").addEventListener("click", () => send($("prompt").value));
+$("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter") send($("prompt").value); });
+
+/* ---------------- score ---------------- */
+function setScore(abc) {
+  stopPlayback();
+  currentABC = abc;
+  $("score-empty").style.display = "none";
+  const rendered = ABCJS.renderAbc("score", abc, {
+    responsive: "resize",
+    add_classes: true,
+    foregroundColor: "#c7d2cc",
+    paddingtop: 8,
+    paddingbottom: 18,
+  });
+  visualObj = rendered && rendered[0];
+  $("playbtn").disabled = !visualObj;
+  $("loopbtn").disabled = !visualObj;
+  $("dlbtn").disabled = !visualObj;
+  $("midibtn").disabled = !visualObj;
+  $("srcbtn").disabled = !visualObj;
+  $("abcsrc").textContent = abc;
+  updateStatus(abc);
+  renderVoices(abc);
+  const panel = $("score-panel");
+  panel.classList.add("fresh");
+  setTimeout(() => panel.classList.remove("fresh"), 1200);
+}
+
+function header(abc, letter) {
+  const m = abc.match(new RegExp("^" + letter + ":\\s*(.+)$", "m"));
+  return m ? m[1].trim() : null;
+}
+function updateStatus(abc) {
+  const sep = '<span class="sep">&middot;</span>';
+  const parts = [];
+  const title = header(abc, "T");
+  if (title) parts.push('<span class="lit">' + escapeHtml(title.toLowerCase()) + "</span>");
+  const key = header(abc, "K");
+  if (key) parts.push("key of " + escapeHtml(key));
+  const meter = header(abc, "M");
+  if (meter) parts.push(escapeHtml(meter));
+  const tempo = header(abc, "Q");
+  if (tempo) parts.push(escapeHtml(tempo.replace("1/4=", "")) + " bpm");
+  $("statusline").innerHTML = parts.join(sep) || "untitled";
+}
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ---------------- playback + visuals bridge ---------------- */
+let warp = 1;
+async function play() {
+  if (!visualObj) return;
+  stopPlayback();
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume();
+  synth = new ABCJS.synth.CreateSynth();
+  await synth.init({
+    visualObj,
+    audioContext: audioCtx,
+    millisecondsPerMeasure: visualObj.millisecondsPerMeasure() / warp,
+    options: {},
+  });
+  const primed = await synth.prime();
+  const totalMs = ((primed && primed.duration) || synth.duration || 0) * 1000;
+  const baseBpm = typeof visualObj.getBpm === "function" ? visualObj.getBpm() : 0;
+  timer = new ABCJS.TimingCallbacks(visualObj, {
+    qpm: baseBpm ? baseBpm * warp : undefined,
+    eventCallback: (ev) => {
+      if (!ev) {
+        const restart = looping;
+        stopPlayback();
+        if (restart) play();
+        return;
+      }
+      clearHighlights();
+      if (ev.elements) {
+        for (const group of ev.elements) {
+          for (const node of group) {
+            node.classList.add("abcjs-highlight");
+            highlighted.push(node);
+          }
+        }
+      }
+      if (totalMs && typeof ev.milliseconds === "number") {
+        $("progress").style.width = Math.min(100, (ev.milliseconds / totalMs) * 100) + "%";
+      }
+      if (ev.midiPitches) for (const p of ev.midiPitches) spawnBloom(p.pitch);
+    },
+  });
+  playing = true;
+  $("playbtn").textContent = "stop";
+  $("playbtn").classList.add("active");
+  synth.start();
+  timer.start();
+}
+function clearHighlights() {
+  for (const node of highlighted) node.classList.remove("abcjs-highlight");
+  highlighted = [];
+}
+function stopPlayback() {
+  if (timer) { timer.stop(); timer = null; }
+  if (synth) { try { synth.stop(); } catch (e) {} synth = null; }
+  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+  clearHighlights();
+  $("progress").style.width = "0%";
+  playing = false;
+  $("playbtn").textContent = "play";
+  $("playbtn").classList.remove("active");
+}
+$("playbtn").addEventListener("click", () => (playing ? stopPlayback() : play()));
+$("loopbtn").addEventListener("click", () => {
+  looping = !looping;
+  $("loopbtn").textContent = looping ? "loop on" : "loop off";
+  $("loopbtn").classList.toggle("active", looping);
+});
+
+$("warp").addEventListener("input", () => {
+  warp = parseFloat($("warp").value);
+  $("warplabel").innerHTML = "&times;" + warp.toFixed(2);
+});
+$("warp").addEventListener("change", () => {
+  if (playing) { stopPlayback(); play(); }
+});
+
+$("srcbtn").addEventListener("click", () => {
+  const open = $("srcwrap").classList.toggle("open");
+  $("srcbtn").classList.toggle("active", open);
+});
+$("copybtn").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(currentABC);
+    $("copybtn").textContent = "copied";
+    setTimeout(() => { $("copybtn").textContent = "copy"; }, 1200);
+  } catch (e) {
+    $("copybtn").textContent = "copy failed";
+  }
+});
+
+$("dlbtn").addEventListener("click", () => {
+  if (!currentABC) return;
+  const name = (header(currentABC, "T") || "tune").replace(/\W+/g, "-");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([currentABC], { type: "text/plain" }));
+  a.download = "llmcomposer-" + name + ".abc";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("midibtn").addEventListener("click", () => {
+  if (!currentABC) return;
+  let midi = ABCJS.synth.getMidiFile(currentABC, { midiOutputType: "binary" });
+  if (Array.isArray(midi)) midi = midi[0];
+  const name = (header(currentABC, "T") || "tune").replace(/\W+/g, "-");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([midi], { type: "audio/midi" }));
+  a.download = "llmcomposer-" + name + ".mid";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("resetbtn").addEventListener("click", async () => {
+  await fetch("/reset", { method: "POST" }).catch(() => {});
+  stopPlayback();
+  currentABC = "";
+  visualObj = null;
+  $("score").innerHTML = "";
+  $("score-empty").style.display = "flex";
+  $("playbtn").disabled = true;
+  $("loopbtn").disabled = true;
+  $("dlbtn").disabled = true;
+  $("midibtn").disabled = true;
+  $("srcbtn").disabled = true;
+  $("srcbtn").classList.remove("active");
+  $("srcwrap").classList.remove("open");
+  $("abcsrc").textContent = "";
+  versions.length = 0;
+  viewingVersion = -1;
+  renderVersions();
+  $("voices").innerHTML = "";
+  $("statusline").textContent = "waiting for a first feeling";
+  addMsg("cleared the page. tell me how the next one should feel.", "bot");
+});
+
+/* ---------------- generative field ----------------
+   every played note grows an organic mark; simple marks
+   accumulating into a coherent whole.                  */
+const canvas = $("field");
+const g = canvas.getContext("2d");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let W = 0, H = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = "#070b0a";
+  g.fillRect(0, 0, W, H);
+}
+window.addEventListener("resize", resize);
+resize();
+
+const walkers = [];
+const MAX_WALKERS = reduced ? 40 : 200;
+function pitchColor(midi, alpha) {
+  const pc = ((midi % 12) + 12) % 12;
+  const hue = 168 - (pc / 11) * 118;
+  const light = 52 + Math.min(1, Math.max(0, (midi - 40) / 50)) * 22;
+  return "hsla(" + hue + ", 48%, " + light + "%, " + alpha + ")";
+}
+function spawnBloom(midi) {
+  const x = rand(W * 0.1, W * 0.9);
+  const y = H * 0.85 - Math.min(1, Math.max(0, (midi - 40) / 50)) * H * 0.65 + rand(-12, 12);
+  for (let i = 0; i < 5; i++) {
+    if (walkers.length >= MAX_WALKERS) walkers.shift();
+    walkers.push({
+      x, y,
+      a: rand(0, Math.PI * 2),
+      speed: rand(0.4, 1.2),
+      life: rand(140, 280),
+      age: 0,
+      width: 1.4,
+      midi,
+      curl: rand(-0.14, 0.14),
+    });
+  }
+}
+const spores = [];
+for (let i = 0; i < (reduced ? 0 : 42); i++) {
+  spores.push({ x: Math.random() * 2000, y: Math.random() * 1200,
+    r: rand(0.4, 1.4), s: rand(0.04, 0.16), tw: Math.random() * Math.PI * 2 });
+}
+function frame() {
+  requestAnimationFrame(frame);
+  g.fillStyle = "rgba(7, 11, 10, 0.05)";
+  g.fillRect(0, 0, W, H);
+  for (const s of spores) {
+    s.y -= s.s; s.tw += 0.01;
+    if (s.y < -4) { s.y = H + 4; s.x = Math.random() * W; }
+    g.fillStyle = "rgba(199, 210, 204, " + (0.03 + 0.04 * (0.5 + 0.5 * Math.sin(s.tw))) + ")";
+    g.beginPath();
+    g.arc(s.x % W, s.y % (H + 8), s.r, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = walkers.length - 1; i >= 0; i--) {
+    const w = walkers[i];
+    const px = w.x, py = w.y;
+    w.a += w.curl + rand(-0.22, 0.22);
+    w.x += Math.cos(w.a) * w.speed;
+    w.y += Math.sin(w.a) * w.speed - 0.06;
+    w.age++;
+    const fade = 1 - w.age / w.life;
+    if (fade <= 0) { walkers.splice(i, 1); continue; }
+    g.strokeStyle = pitchColor(w.midi, (fade * 0.8).toFixed(3));
+    g.lineWidth = w.width * fade + 0.2;
+    g.beginPath();
+    g.moveTo(px, py);
+    g.lineTo(w.x, w.y);
+    g.stroke();
+  }
+}
+requestAnimationFrame(frame);
+
+/* ---------------- greeting ---------------- */
+addMsg(
+  "i write music; you describe it. give me a feeling, a place, a weather — " +
+  "i'll set it down in notation on the right, and every note we play " +
+  "grows a mark in the field behind us.",
+  "bot"
+);
+$("prompt").focus();
+})();
+</script>
+</body>
+</html>
